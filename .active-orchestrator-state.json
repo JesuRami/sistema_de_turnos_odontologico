@@ -1,0 +1,327 @@
+﻿{
+  "discovery": {
+    "casos_de_uso": [
+      "Como paciente, quiero reservar un turno online 24/7 sin llamar",
+      "Como recepción, quiero agenda diaria/semanal por profesional y sillón con bloqueos, sobreturnos y sin solapamientos",
+      "Como paciente, quiero confirmar/cancelar/reprogramar y entrar en lista de espera",
+      "Como clínica, quiero recordatorios automáticos por WhatsApp y recupero de ausentes/controles",
+      "Como odontólogo, quiero anamnesis + odontograma/periodontograma + imágenes y plan/presupuesto",
+      "Como administración, quiero caja + Mercado Pago + factura ARCA + obras sociales y liquidación",
+      "Como dueño, quiero reportes (ocupación, ausentismo, producción, conversión) y roles/auditoría/exportación"
+    ],
+    "competitors": [
+      {
+        "name": "OdonFlow",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "DentalCore",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Bilog",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "DentalTec",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "FLAP",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "ClinIA / OdontoClinIA",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Odontoly",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Livio",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "DentalCor",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Odonthia",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "DenPro",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Dentatools",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Dentalink",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Dentidesk",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Doctocliq",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "AgendaPro",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Clinic Cloud",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Medesk",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Gesden",
+        "notes_file": "discovery/discovery.md"
+      },
+      {
+        "name": "Doctoralia PRO",
+        "notes_file": "discovery/discovery.md"
+      }
+    ],
+    "created_by": "discovery-research",
+    "funcionalidades_necesarias": [
+      "Agenda multi-profesional y multi-sillón con duraciones variables, bloqueos, sobreturnos y prevención de solapamientos",
+      "Reserva online 24/7 por link/web/redes + confirmación/cancelación/reprogramación + lista de espera",
+      "Recordatorios automáticos por WhatsApp Business API + email con ventana de cancelación configurable",
+      "Ficha clínica + anamnesis + odontograma FDI por cara + adjuntos + evoluciones + presupuesto/plan por fases",
+      "Caja diaria + señas + Mercado Pago + cuenta corriente",
+      "Factura electrónica ARCA en el cobro + nomenclador OS por convenio con copago + liquidación mensual",
+      "Roles y permisos + reportes mínimos (ocupación, ausentismo, producción, presupuestos pendientes)",
+      "Seguridad auditable + trazabilidad + backups + exportación completa en formato abierto"
+    ],
+    "funcionalidades_opcionales": [
+      "Periodontograma avanzado con comparativa y ortodoncia/cefalometría",
+      "Laboratorio, stock/esterilización e inventario por lote",
+      "Multi-sucursal, Call Center y comisiones complejas",
+      "CRM/marketing, campañas, pipeline de leads y recall avanzado",
+      "IA clínica (CDSS, dictado por voz, análisis de rx) y videoconsulta",
+      "Portal del paciente, app nativa, firma digital verificada y API pública/Google Calendar"
+    ],
+    "integraciones": [
+      "WhatsApp Business API oficial (reserva, confirmación, recordatorios, recall) con costo visible",
+      "Mercado Pago (QR/link/señas) con conciliación automática en caja",
+      "ARCA ex AFIP (factura electrónica en el cobro)",
+      "Obras sociales/prepagas (nomenclador por convenio, copago/coseguro, autorizaciones, liquidación; PUCO donde aplique)",
+      "Sitio web y redes sociales (link de reserva, Instagram/Messenger)",
+      "Google Calendar, API pública, radiología/imagen, firma digital (Ley 25.506) y marketing (fase posterior)"
+    ],
+    "preguntas_abiertas": [
+      "¿Foco inicial: consultorio independiente vs clínica multi-sillón vs red con obras sociales?",
+      "¿Validación OS online en MVP o fase 2 (liquidación con copago alcanza para MVP)?",
+      "¿Precio por clínica en ARS vs por profesional y cómo absorber costo WhatsApp/Meta?",
+      "¿Offline degradado en MVP o solo tolerancia a cortes?",
+      "¿Multi-sede y API pública día 1 o posterior?",
+      "¿Login del paciente o link + DNI sin registro obligatorio?"
+    ],
+    "problema": "Consultorios y clínicas odontológicas argentinas operan con agenda, historia clínica, cobros y obras sociales fragmentados (papel, WhatsApp manual, planillas, ARCA por separado), lo que genera solapamientos, ausentismo, presupuestos perdidos, débitos OS y conciliación manual. La oportunidad es cerrar el circuito turno→odontograma→presupuesto→cobro MP→factura ARCA→liquidación OS→recall con WhatsApp como canal dominante.",
+    "restricciones": [
+      "Normativa AR: Leyes 26.529 (derechos del paciente/HC), 27.706 (HCE), 25.506 (firma digital), protección de datos personales; ReNaPDiS/HL7 FHIR donde aplique",
+      "Facturación ARCA y nomencladores OS por convenio con topes/autorizaciones",
+      "Conectividad intermitente (evaluar modo degradado) y uso móvil dominante del paciente",
+      "Presupuesto acotado de consultorio independiente; fricción cambiaria si se cobra en USD/EUR/UF",
+      "Soporte y precios en Argentina con IVA explícito"
+    ],
+    "riesgos": [
+      "Suponer que reserva online reduce ausentismo sin recordatorios/ventana de cancelación ni lista de espera",
+      "Suponer que odontograma básico cubre periodoncia/ortodoncia y que facturación genérica cubre OS/ARCA",
+      "Lock-in por exportación no documentada (solo Doctocliq la documenta con plazo)",
+      "Costo WhatsApp/Meta no modelado y opacidad de precios demo-gated en 6+ competidores",
+      "Métricas comerciales auto-reportadas (−40% ausentismo, −64% débitos) sin auditoría; solo Capterra AgendaPro 4.8/158 es verificable con N"
+    ],
+    "sources": [
+      "https://odonflow.com/",
+      "https://odonflow.com/software-odontologico-argentina",
+      "https://dentalcore.app/",
+      "https://bilog.com.ar/funcionalidades/",
+      "https://web.dentaltec.com.ar/software-odontologos-argentina",
+      "https://web.dentaltec.com.ar/preguntas-frecuentes",
+      "https://flap.com.ar/odontologos",
+      "https://www.clinia.com.ar/odontologia",
+      "https://odontoly.com/",
+      "https://www.liviodental.com/",
+      "https://dentalcorsoftware.com.ar/",
+      "https://odonthia.com/blog/mejores-software-odontologicos-argentina-2026",
+      "https://www.denpro.ar/",
+      "https://dentatools.co/ar/blog/mejor-software-para-consultorio-odontologico-argentina/",
+      "https://www.softwaredentalink.com/es/planes",
+      "https://www.dentidesk.com/",
+      "https://www.doctocliq.com/planes-y-precios",
+      "https://www.doctocliq.com/software-dental",
+      "https://agendapro.com/es/planes",
+      "https://agendapro.com/ar/dental/software-odontologico",
+      "https://clinic-cloud.com/tarifas",
+      "https://www.medesk.net/es/solutiones/odontologia/",
+      "https://www.infomedsoftware.com/software/gesden/gesden-g5/",
+      "https://pro.doctoralia.com/ar/precio"
+    ],
+    "sources_fetched_at": "2026-10-08",
+    "usuarios": [
+      "Odontólogo independiente / consultorio 1-2 sillones",
+      "Recepción / administración de clínica (agenda multi-profesional y multi-sillón, caja, confirmaciones)",
+      "Clínica mediana / cadena multi-sucursal (liquidaciones OS, comisiones, inventario, auditoría)",
+      "Paciente (reserva 24/7, confirmación/cancelación, recordatorios, pagos, presupuestos)",
+      "Círculos/federaciones/gerenciadoras (validación, nomencladores, flujo Círculo→Federación→Confederación)"
+    ]
+  },
+  "owner": "active-orchestrator",
+  "step": "done",
+  "version": 4,
+  "registry": {
+    "created_by": "skill-registry",
+    "file": ".atl/skill-registry.md"
+  },
+  "skills": {
+    "recommended": [
+      {
+        "skill": "vercel-labs/agent-skills@vercel-react-best-practices",
+        "source": "vercel-labs/agent-skills",
+        "installs": "778.6K",
+        "why": "React best practices para agenda diaria/semanal multi-profesional en React+TS+Vite"
+      },
+      {
+        "skill": "supabase/agent-skills@supabase-postgres-best-practices",
+        "source": "supabase/agent-skills",
+        "installs": "435.8K",
+        "why": "PostgreSQL best practices para turnos sin solapamientos, índices y concurrencia"
+      },
+      {
+        "skill": "anthropics/skills@frontend-design",
+        "source": "anthropics/skills",
+        "installs": "964.0K",
+        "why": "Diseño frontend para reserva online 24/7 y ficha clínica usable en móvil"
+      },
+      {
+        "skill": "vercel-labs/agent-skills@web-design-guidelines",
+        "source": "vercel-labs/agent-skills",
+        "installs": "709.8K",
+        "why": "Guidelines web para flujo paciente reserva/confirmación/cancelación accesible"
+      },
+      {
+        "skill": "mattpocock/skills@tdd",
+        "source": "mattpocock/skills",
+        "installs": "1M",
+        "why": "TDD para lógica crítica de agenda con pytest/httpx (overlap, sobreturnos, lista de espera)"
+      },
+      {
+        "skill": "mattpocock/skills@code-review",
+        "source": "mattpocock/skills",
+        "installs": "689.5K",
+        "why": "Code review sistemático para FastAPI+React antes de cada change del MVP agenda-first"
+      },
+      {
+        "skill": "wshobson/agents@auth-implementation-patterns",
+        "source": "wshobson/agents",
+        "installs": "17.7K",
+        "why": "Patrones de implementación auth para JWT + roles (recepción/odontólogo/admin/paciente)"
+      },
+      {
+        "skill": "securityskills/skills@jwt-security-review",
+        "source": "securityskills/skills",
+        "installs": "662",
+        "why": "Review específica JWT (firma, expiración, refresh, RBAC) para seguridad auditable AR"
+      },
+      {
+        "skill": "wispbit-ai/skills@sqlalchemy-alembic-expert-best-practices-code-review",
+        "source": "wispbit-ai/skills",
+        "installs": "1.8K",
+        "why": "Match directo SQLAlchemy+Alembic: modelos, migraciones y review de queries clínicas/caja"
+      },
+      {
+        "skill": "sickn33/agentic-awesome-skills@python-fastapi-development",
+        "source": "sickn33/agentic-awesome-skills",
+        "installs": "525",
+        "why": "Desarrollo FastAPI idiomático (routers, DI, validación Pydantic) para backend de turnos"
+      },
+      {
+        "skill": "github/awesome-copilot@sql-optimization",
+        "source": "github/awesome-copilot",
+        "installs": "15K",
+        "why": "Optimización SQL para queries de disponibilidad, ocupación y reportes (ausentismo/producción)"
+      },
+      {
+        "skill": "manutej/luxor-claude-marketplace@docker-compose-orchestration",
+        "source": "manutej/luxor-claude-marketplace",
+        "installs": "2.9K",
+        "why": "Orquestación Docker Compose para FastAPI+Postgres+Redis+React+Vite reproducible"
+      }
+    ],
+    "installed": [
+      "vercel-react-best-practices",
+      "supabase-postgres-best-practices",
+      "frontend-design",
+      "web-design-guidelines",
+      "tdd",
+      "code-review",
+      "auth-implementation-patterns",
+      "jwt-security-review",
+      "sqlalchemy-alembic-expert-best-practices-code-review",
+      "python-fastapi-development",
+      "sql-optimization",
+      "docker-compose-orchestration"
+    ]
+  },
+  "roadmap": {
+    "created_by": "roadmap-generator",
+    "changes_file": "CHANGES.md"
+  },
+  "kb": {
+    "files": [
+      "knowledge-base/01_vision_y_objetivos.md",
+      "knowledge-base/02_descripcion_general.md",
+      "knowledge-base/03_actores_y_roles.md",
+      "knowledge-base/04_modelo_de_datos.md",
+      "knowledge-base/05_reglas_de_negocio.md",
+      "knowledge-base/06_funcionalidades.md",
+      "knowledge-base/07_flujos_principales.md",
+      "knowledge-base/08_arquitectura_propuesta.md",
+      "knowledge-base/09_decisiones_y_supuestos.md",
+      "knowledge-base/10_preguntas_abiertas.md",
+      "knowledge-base/11_whatsapp_y_recordatorios.md",
+      "knowledge-base/README.md"
+    ],
+    "source": "interactive",
+    "created_by": "kb-creator",
+    "discovery": {
+      "stack": "Python/FastAPI + SQLAlchemy + PostgreSQL + Redis + React+TS+Vite (Docker Compose)",
+      "domain": "dental",
+      "system_type": "web_app",
+      "problem": "Los consultorios y clínicas odontológicas argentinas gestionan agenda, historia clínica, cobros y obras sociales con herramientas fragmentadas, lo que genera solapamientos, ausentismo, presupuestos perdidos, débitos de obras sociales y conciliación manual. Falta cerrar el circuito turno → odontograma → cobro → ARCA → liquidación OS → recall por WhatsApp.",
+      "needs_infra": true,
+      "scale": "team"
+    }
+  },
+  "agents": {
+    "created_by": "agent-instruction",
+    "files": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "reglas_applied": [
+      "no-overlap-db-exclude",
+      "pydantic-extra-forbid",
+      "alembic-only-migrations",
+      "clinic-id-multitenant",
+      "ts-strict-no-any",
+      "secrets-via-env",
+      "append-only-no-delete",
+      "no-select-star-cursor-pagination",
+      "real-db-tests",
+      "jwt-short-httpOnly",
+      "concurrent-index-migrations",
+      "pinned-images-healthcheck"
+    ]
+  }
+}

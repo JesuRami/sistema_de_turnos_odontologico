@@ -4,22 +4,37 @@
 
 See `_shared/skill-resolver.md` for the full resolution protocol.
 
-## User Skills
+> Rebuilt: skills moved from GLOBAL to PROJECT-LOCAL scope. The 12 coding skills below resolve to `.agents/skills/` in this repo; foundation/orchestrator skills remain global under `C:\Users\DWIOL-11-001816\.config\opencode\skills\`.
+
+## Project Skills (local — `.agents/skills/`)
 
 | Trigger | Skill | Path |
 |---------|-------|------|
-| Writing, reviewing, or refactoring React/Next.js code; React components, Next.js pages, data fetching, bundle optimization, performance improvements | vercel-react-best-practices | C:\Users\DWIOL-11-001816\.agents\skills\vercel-react-best-practices\SKILL.md |
-| Creating or altering tables/columns, schema design, migrations, RLS policies, indexes, triggers, functions, queues/jobs, pgvector, restores; slow queries, CPU, timeouts, EXPLAIN, connections, locking, bloat, tenant leaks | supabase-postgres-best-practices | C:\Users\DWIOL-11-001816\.agents\skills\supabase-postgres-best-practices\SKILL.md |
-| Building new UI or reshaping existing one; aesthetic direction, typography, distinctive visual design | frontend-design | C:\Users\DWIOL-11-001816\.agents\skills\frontend-design\SKILL.md |
-| Review UI, check accessibility, audit design, review UX, check site against best practices | web-design-guidelines | C:\Users\DWIOL-11-001816\.agents\skills\web-design-guidelines\SKILL.md |
-| Build features or fix bugs test-first; red-green-refactor; integration tests | tdd | C:\Users\DWIOL-11-001816\.agents\skills\tdd\SKILL.md |
-| Review a branch, PR, work-in-progress changes, or review since a commit/branch/tag | code-review | C:\Users\DWIOL-11-001816\.agents\skills\code-review\SKILL.md |
-| Implementing auth systems, securing APIs, OAuth2/social login, RBAC, session management, SSO/multi-tenancy, debugging auth | auth-implementation-patterns | C:\Users\DWIOL-11-001816\.agents\skills\auth-implementation-patterns\SKILL.md |
-| Codebase or API uses JWTs for auth; audit tokens, auth review | jwt-security-review | C:\Users\DWIOL-11-001816\.agents\skills\jwt-security-review\SKILL.md |
-| Writing, reviewing, or refactoring SQLAlchemy models, Alembic migrations, schema changes, query optimization | sqlalchemy-alembic-expert-best-practices-code-review | C:\Users\DWIOL-11-001816\.agents\skills\sqlalchemy-alembic-expert-best-practices-code-review\SKILL.md |
-| Building REST APIs with FastAPI, async Python backends, SQLAlchemy/Pydantic integration, API auth, microservices | python-fastapi-development | C:\Users\DWIOL-11-001816\.agents\skills\python-fastapi-development\SKILL.md |
-| Query tuning, indexing strategies, execution plan analysis, pagination, batch ops, performance monitoring (any SQL DB) | sql-optimization | C:\Users\DWIOL-11-001816\.agents\skills\sql-optimization\SKILL.md |
-| Multi-container apps, dev environments with DB/cache, frontend+backend+DB orchestration, service dependencies, networking, volumes, production deployment | docker-compose-orchestration | C:\Users\DWIOL-11-001816\.agents\skills\docker-compose-orchestration\SKILL.md |
+| Writing, reviewing, or refactoring React/Next.js code; React components, Next.js pages, data fetching, bundle optimization, performance improvements | vercel-react-best-practices | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\vercel-react-best-practices\SKILL.md |
+| Creating or altering tables/columns, schema design, migrations, RLS policies, indexes, triggers, functions, queues/jobs, pgvector, restores; slow queries, CPU, timeouts, EXPLAIN, connections, locking, bloat, tenant leaks | supabase-postgres-best-practices | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\supabase-postgres-best-practices\SKILL.md |
+| Building new UI or reshaping existing one; aesthetic direction, typography, distinctive visual design | frontend-design | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\frontend-design\SKILL.md |
+| Review UI, check accessibility, audit design, review UX, check site against best practices | web-design-guidelines | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\web-design-guidelines\SKILL.md |
+| Build features or fix bugs test-first; red-green-refactor; integration tests | tdd | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\tdd\SKILL.md |
+| Review a branch, PR, work-in-progress changes, or review since a commit/branch/tag | code-review | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\code-review\SKILL.md |
+| Implementing auth systems, securing APIs, OAuth2/social login, RBAC, session management, SSO/multi-tenancy, debugging auth | auth-implementation-patterns | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\auth-implementation-patterns\SKILL.md |
+| Codebase or API uses JWTs for auth; audit tokens, auth review | jwt-security-review | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\jwt-security-review\SKILL.md |
+| Writing, reviewing, or refactoring SQLAlchemy models, Alembic migrations, schema changes, query optimization | sqlalchemy-alembic-expert-best-practices-code-review | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\sqlalchemy-alembic-expert-best-practices-code-review\SKILL.md |
+| Building REST APIs with FastAPI, async Python backends, SQLAlchemy/Pydantic integration, API auth, microservices | python-fastapi-development | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\python-fastapi-development\SKILL.md |
+| Query tuning, indexing strategies, execution plan analysis, pagination, batch ops, performance monitoring (any SQL DB) | sql-optimization | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\sql-optimization\SKILL.md |
+| Multi-container apps, dev environments with DB/cache, frontend+backend+DB orchestration, service dependencies, networking, volumes, production deployment | docker-compose-orchestration | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\docker-compose-orchestration\SKILL.md |
+
+## Foundation Skills (global — orchestrator/SDD flow, intentionally NOT local)
+
+| Trigger | Skill | Path |
+|---------|-------|------|
+| Start a new project from scratch with SDD/OpenSpec flow; /active-orchestrator:* commands | active-orchestrator | C:\Users\DWIOL-11-001816\.config\opencode\skills\active-orchestrator\SKILL.md |
+| Create/generate/update AGENTS.md or CLAUDE.md; project rules for agents | agents-md-generator | C:\Users\DWIOL-11-001816\.config\opencode\skills\agent-instruction\SKILL.md |
+| Investigate market/competitors/think about what to build before KB exists; Discovery phase | discovery-research | C:\Users\DWIOL-11-001816\.config\opencode\skills\discovery-research\SKILL.md |
+| How do I do X; find a skill for X; is there a skill that can...; extend capabilities | find-skills | C:\Users\DWIOL-11-001816\.config\opencode\skills\find-skill\SKILL.md |
+| Create/build/generate a knowledge base; document a project from source docs; armar base de conocimiento | kb-creator | C:\Users\DWIOL-11-001816\.config\opencode\skills\kb-creator\SKILL.md |
+| Create/build/regenerate CHANGES.md, roadmap, change map, implementation plan | roadmap-generator | C:\Users\DWIOL-11-001816\.config\opencode\skills\roadmap-generator\SKILL.md |
+| Create a skill from scratch; edit/optimize an existing skill; benchmark skill performance | skill-creator | C:\Users\DWIOL-11-001816\.config\opencode\skills\skill-creator\SKILL.md |
+| Investigate/scrape a competitor from a URL into fixed-schema markdown notes | web-scraper | C:\Users\DWIOL-11-001816\.config\opencode\skills\web-scraper\SKILL.md |
 
 ## Compact Rules
 
@@ -32,11 +47,11 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Prefer SWR for client fetch dedup; deduplicate global event listeners; use passive listeners for scroll; version and minimize localStorage payloads
 - Derive state during render, not in effects; subscribe to derived booleans not raw values; use functional setState for stable callbacks; split hooks with independent deps
 - Never define components inside components; extract expensive work into memoized components; use startTransition/useDeferredValue for non-urgent renders
-- For agenda SPA (C-06): keep day/week views < 2s with 500 turnos/semana — virtualize long lists (content-visibility), hoist static JSX, batch DOM/CSS writes
+- For agenda SPA: keep day/week views fast with hundreds of turnos — virtualize long lists (content-visibility), hoist static JSX, batch DOM/CSS writes
 
 ### supabase-postgres-best-practices
 - Design schema first: choose correct column types, NOT NULL + CHECK constraints to help the optimizer, normalize OLTP to 3NF
-- Index every frequent filter/join/sort path; prefer partial indexes (e.g. WHERE status NOT IN ('cancelled','no_show')) and composite indexes in filter-order
+- Index every frequent filter/join/sort path; prefer partial indexes (e.g. WHERE estado vigente) and composite indexes in filter-order
 - Always EXPLAIN (ANALYZE, BUFFERS) slow queries; fix missing-index sequential scans before rewriting logic
 - Enforce tenant isolation: mandatory clinic_id on operative tables + RLS policies, with tests proving cross-tenant invisibility
 - Use SELECT column lists, never SELECT * in production; filter early in WHERE; prefer EXISTS over IN; never wrap indexed columns in functions in WHERE
@@ -63,15 +78,15 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Red before green: write the failing test first, then only enough code to pass; no speculative features
 - Agree seams in writing before any test (public boundary under test + what it catches/misses); never test internals or unconfirmed seams
 - One vertical slice per cycle: one seam → one test (tracer bullet) → one minimal implementation → repeat; never horizontal slicing (all tests then all code)
-- Tests assert behavior through public interfaces (e.g. POST /appointments concurrency → 409, reprogramación que colisiona deja turno intacto); survive refactors
+- Tests assert behavior through public interfaces (e.g. concurrent booking → 409, clashing reprogram leaves turno intact); survive refactors
 - Expected values come from independent truth (literal, worked example, spec RN-AG/RN-ST/RN-CX) — never recompute the way the code does; no tautological assertions or hand-derived snapshots
-- No mocks of internal collaborators, no private-method tests, no DB side-channel assertions; read GLOSSARY/domain language so test names match ubiquitous language
+- No mocks of internal collaborators, no private-method tests, no DB side-channel assertions; real Postgres for agenda invariants
 - Refactoring belongs to review stage (code-review skill), not the red→green loop
 
 ### code-review
 - Pin the fixed point first: git rev-parse <ref>, diff with git diff <fixed-point>...HEAD (three-dot) + git log <fixed-point>..HEAD --oneline; fail on bad ref or empty diff
 - Run Standards and Spec axes as parallel sub-agents; never merge/rerank across axes — report under separate ## Standards / ## Spec headings
-- Standards = repo docs (CODING_STANDARDS.md/CONTRIBUTING.md if present) + Fowler smell baseline as judgement calls only; repo standard always overrides baseline; skip tooling-enforced items
+- Standards = repo docs (AGENTS.md/CLAUDE.md hard rules + KB) + Fowler smell baseline as judgement calls only; repo standard always overrides baseline; skip tooling-enforced items
 - Flag smells by name with hunk quotes: Mysterious Name, Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession, Repeated Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message Chains, Middle Man, Refused Bequest
 - Spec = originating issue/spec (commit refs → user path → docs/specs/.scratch match → ask); report missing/partial requirements, scope creep, and plausible-but-wrong implementations with spec line quotes; if no spec, skip Spec axis explicitly
 - Keep each axis report < 400 words; end with per-axis totals + worst issue per axis
@@ -79,9 +94,9 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 ### auth-implementation-patterns
 - Separate AuthN (who) from AuthZ (what): verify identity, then enforce permissions server-side on every request — never client-only checks
 - Passwords: argon2id (or bcrypt) hashing only, never plaintext; enforce strength; secure reset tokens with expiry
-- JWT access tokens short-lived (15 min: sub=stable user ID, clinic_id, roles, email, jti, type, iat, exp); refresh tokens rotating with reuse-detection, hashed server-side, HttpOnly Secure SameSite=Lax cookies
+- JWT access tokens short-lived (≤15 min); refresh tokens rotating with reuse-detection, hashed server-side, HttpOnly Secure SameSite=Lax cookies
 - RBAC via FastAPI dependencies (e.g. require_roles('admin','recepcion')); odontólogo sees only own turnos enforced in SQLAlchemy query, not frontend
-- Rate-limit auth endpoints (login 5/60s per IP+email; booking/webhooks strict); validate all input (email, E.164 phone, Pydantic v2 at edges)
+- Rate-limit auth endpoints (login strict per IP+email; booking/webhooks strict); validate all input (email, E.164 phone, Pydantic v2 extra='forbid' at edges)
 - Use HTTPS everywhere; rotate JWT/session secrets regularly; log security events (login attempts, failed auth) without PII
 - Never put JWTs in localStorage when XSS surface exists; add CSRF protection for cookie flows; offer MFA where possible
 
@@ -96,26 +111,26 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Smell: jwt.decode() without verify, jwt.verify() without algorithms pin
 
 ### sqlalchemy-alembic-expert-best-practices-code-review
-- One Alembic migration per change, versioned (001 core, 002 auth, 003 schedule/block, 004 appointment+EXCLUDE, 005 reminders, 006 waitlist); DDL for EXCLUDE constraints
+- One Alembic migration per change, versioned; DDL for EXCLUDE constraints
 - Create indexes CONCURRENTLY (postgresql_concurrently=True + autocommit block); never blocking CREATE INDEX on hot tables
 - Add FKs and CHECKs as NOT VALID first, then VALIDATE separately; split unique constraints into concurrent index + constraint steps
 - Column type changes via multi-step (add → backfill → swap) to avoid long table locks
 - Cap non-unique indexes at 3 columns; drop redundant indexes covered by composite prefixes; verify every SQLAlchemy query pattern has a matching index
-- Models: SQLAlchemy 2.x async, clinic_id mandatory on operative tables, tstzrange + EXCLUDE USING gist for appointments per professional/chair WHERE status NOT IN ('cancelled','no_show'); appointment_event append-only (DB role without UPDATE/DELETE)
+- Models: SQLAlchemy 2.x async, clinic_id mandatory on operative tables, tstzrange + EXCLUDE USING gist for appointments per professional/chair WHERE estado vigente; appointment_event append-only
 - Review checklist: safe migration path, index coverage, constraint safety, query patterns (availability = schedule_rule − block − vigentes − buffers)
 
 ### python-fastapi-development
-- Stack: Python 3.11+, FastAPI async, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2 + pydantic-settings, Redis 7, pytest + httpx/TestClient
-- Structure per domain (auth, clinic, agenda, booking_public, waiting_list, reminders, notifications, users, reports): routers/ + services/ + schemas/ + models/; app/main.py with CORS + global rate-limit; app/worker/ entrypoint
-- Routers thin → services hold logic; request/response validation with Pydantic schemas at every edge; custom exceptions + handlers with consistent error envelopes
+- Stack: Python 3.12+, FastAPI async, SQLAlchemy 2.x async + asyncpg, Alembic, Pydantic v2 + pydantic-settings, Redis 7, pytest + httpx/TestClient
+- Structure per domain (auth, clinic, agenda, booking_public, waiting_list, reminders, notifications, users, reports): routers/ + services/ + schemas/ + models/; app/main.py with CORS + global rate-limit
+- Routers thin → services hold logic; request/response validation with Pydantic schemas (extra='forbid') at every edge; custom exceptions + handlers with consistent error envelopes
 - Auth via dependencies (require_roles); argon2id passwords; JWT (see auth/jwt skills); rate-limit sensitive routes via Redis
 - DB sessions async with correct lifespan/dependency scoping; Alembic for all schema changes; never raw DDL outside migrations
-- Quality gates per change: pytest green (>80% coverage on critical paths: overlap, sobreturnos, lista de espera, RBAC), mypy + ruff/black clean, OpenAPI docs complete, security scan passed
-- Config via .env (.env.example: DATABASE_URL, REDIS_URL, JWT_SECRET, JWT_ACCESS_MINUTES, WHATSAPP_TOKEN, META_*, EMAIL_*, CLINIC_TZ_DEFAULT, BOOKING_RATE_LIMIT, MANAGE_TOKEN_TTL_H, FRONTEND_PUBLIC_URL, CORS_ORIGINS)
+- Quality gates per change: pytest green (coverage on critical paths: overlap, sobreturnos, lista de espera, RBAC), mypy + ruff clean, OpenAPI docs complete
+- Config via .env (.env.example complete; never commit .env): DATABASE_URL, REDIS_URL, JWT_SECRET, WHATSAPP_TOKEN, EMAIL_*, CLINIC_TZ_DEFAULT, BOOKING_RATE_LIMIT, MANAGE_TOKEN_TTL_H, FRONTEND_PUBLIC_URL, CORS_ORIGINS
 
 ### sql-optimization
 - Never SELECT * in production; list columns explicitly; filter early; prefer INNER over LEFT when semantics allow; push filters into JOIN ON where it reduces rows
-- Keep WHERE index-friendly: no functions on indexed columns (use range predicates on tstzrange/created_at, LOWER() functional index if needed); prefer UNION ALL over complex OR branches
+- Keep WHERE index-friendly: no functions on indexed columns (use range predicates on tstzrange/created_at); prefer UNION ALL over complex OR branches
 - Replace correlated subqueries with window functions or single conditional-aggregation pass (e.g. occupation/absenteeism counts in one query over appointment_event)
 - Pagination: cursor/keyset (WHERE created_at < ? / id > ? ORDER BY … LIMIT n), never large OFFSET; batch inserts (multi-row VALUES), never row-by-row
 - Index design: composite in filter-order, covering where beneficial, partial for hot subsets (vigentes, pending); avoid over-indexing (hurts INSERT/UPDATE); ≤3 cols for non-unique
@@ -123,19 +138,57 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Methodology: identify via pg_stat_statements/slow log → EXPLAIN → optimize → test with realistic volumes → monitor → iterate; set slow-query alerts
 
 ### docker-compose-orchestration
-- Services: api (FastAPI), db (postgres:15-alpine), redis (redis:7-alpine), worker (async reminder/WhatsApp/waitlist jobs), frontend (React+TS+Vite); 1 DB per clínica (DD-07)
-- Pin specific image tags, never latest in production; one process per container; descriptive service names; restart: unless-stopped (always in prod)
-- Dependencies via depends_on with health conditions: pg_isready -U postgres (10s/5s/5, start 30s), redis-cli ping; api/worker wait for healthy db + started redis
-- Networking: services reach each other by name (DATABASE_URL=postgresql://db:5432/…, REDIS_URL=redis://cache:6379); isolate with frontend/backend networks, internal:true for DB net
+- Services: api (FastAPI), db (postgres 15 pinned), redis (redis 7 pinned), worker (async reminder/WhatsApp/waitlist jobs), frontend (React+TS+Vite static after build); single cloud deploy per tenant
+- Pin specific image tags, never latest in production; one process per container; restart: unless-stopped (always in prod); healthcheck on every service
+- Dependencies via depends_on with health conditions: pg_isready (db), redis-cli ping (redis); api/worker wait for healthy db + started redis
+- Networking: services reach each other by name (DATABASE_URL, REDIS_URL); isolate with frontend/backend networks, internal:true for DB net
 - Volumes: named volumes for pgdata/redis-data; bind-mount source only in dev for hot reload; :ro for configs; never commit .env (use env_file + secrets for JWT_SECRET/DB_PASSWORD)
-- Config: base compose.yaml + compose.override.yaml (dev: live mounts, debug ports) + compose.prod.yaml (replicas, resource limits, log rotation max-size 10m/max-file 5, secrets); validate with docker compose config
-- Lifecycle: up -d --build for deploy; logs -f <svc>, exec <svc> sh for debug; down removes nets/containers, down -v also volumes (data loss); healthcheck every service; non-root users, minimal Alpine images, scanned
+- Config: base compose.yaml + compose.override.yaml (dev) + compose.prod.yaml (replicas, resource limits, log rotation, secrets); validate with docker compose config
+- Lifecycle: up -d --build for deploy; logs -f <svc>, exec <svc> sh for debug; down -v also removes volumes (data loss)
+
+### active-orchestrator
+- Thin orchestrator only: owns `.active-orchestrator-state.json` and the `step` field; never change step/owner except through its own flow
+- Order: openspec init → optional Discovery → kb-creator → roadmap-generator → find-skill → skill-registry → agent-instruction; checkpoint at every phase boundary, never back-to-back
+- Never ask strategic discovery content questions (system_type, scale, stack, checklist) — those belong to kb-creator/discovery-research; only ask phase-selection (whether to run Discovery)
+
+### agents-md-generator
+- Generates canonical AGENTS.md/CLAUDE.md from KB + roadmap: stack, knowledge-base/ refs, skills per agent, CHANGES.md roadmap, hard rules; interactive ONLY to confirm hard rules
+- Pre-checks: KB must exist (run kb-creator first); never repeat global CLAUDE.md content — project-specific only
+- For single-rule edits, edit AGENTS.md directly instead of regenerating
+
+### discovery-research
+- Runs Discovery BEFORE the KB: competitor research via web-scraper + guided Q&A over the full checklist (problem, users, use cases, competitors, features, business rules, integrations, constraints, risks, open questions)
+- Never complete a checklist point with an assumption when it can be asked or researched
+- Output (discovery/discovery.md + state.discovery) is INPUT to kb-creator, not a replacement
+
+### find-skills
+- Use when user asks how to do X or whether a skill exists for X; search via `npx skills find [query] [--owner <owner>]`
+- Install with `npx skills add <package>` (local) or `-g` (global); update with `npx skills update`
+
+### kb-creator
+- Builds 10 canonical .md files at knowledge-base/; auto-detects mode: silent from existing docs/ sources vs interactive from scratch
+- Don't use when KB already complete (update single files instead) or when user wants one specific document
+
+### roadmap-generator
+- Generates CHANGES.md: full change index with dependency tree, parallelism gates, critical path, multi-agent plan, governance levels, per-change scope/dependencies/KB pointers; fire-and-forget
+- Pre-checks: knowledge-base/ and openspec/ must exist; don't regenerate wholesale for single-change updates
+
+### skill-creator
+- Draft → test prompts → evaluate (qualitative + quantitative) → rewrite → repeat; expand test set at larger scale
+- Optimize the skill description for triggering accuracy after the skill works
+
+### web-scraper
+- Converts one competitor/solution URL into fixed-schema markdown notes (problem, users, features, pricing, positioning) via WebFetch/WebSearch — no API keys
+- Output schema is fixed, always; writes to discovery/sources/<slug>.md for discovery-research to consume
+- Never for mass crawling, JS-heavy/anti-bot sites, or a loose URL scrape outside the checklist (that's discovery-research's job)
 
 ## Project Conventions
 
 | File | Path | Notes |
 |------|------|-------|
-| CHANGES.md | CHANGES.md | Canonical change index + dependency tree + parallelism gates + critical path; read before any /opsx:propose |
+| Agent instructions | AGENTS.md | Canonical agent entrypoint: stack, KB index, skills per role, CHANGES roadmap, 12 hard rules; read FIRST on entering repo |
+| Agent instructions (mirror) | CLAUDE.md | Mirror of AGENTS.md — keep in sync (`diff AGENTS.md CLAUDE.md`) |
+| Change index | CHANGES.md | Canonical change index + dependency tree + parallelism gates + critical path; read before any /opsx:propose |
 | KB README | knowledge-base/README.md | KB index — references files below |
 | KB Visión | knowledge-base/01_vision_y_objetivos.md | Alcance v1.0 agenda-first, métricas de éxito |
 | KB Descripción | knowledge-base/02_descripcion_general.md | Stack tecnológico |
@@ -146,11 +199,11 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 | KB Flujos | knowledge-base/07_flujos_principales.md | Flujos 1-5 (booking, token, recordatorios, recepción, espera) |
 | KB Arquitectura | knowledge-base/08_arquitectura_propuesta.md | Directorios, invariante DB, auditoría, seguridad, env vars |
 | KB Decisiones | knowledge-base/09_decisiones_y_supuestos.md | DD-01..DD-07, SU-03/SU-04/SU-06/SU-07 |
-| KB Abiertas | knowledge-base/10_preguntas_abiertas.md | Preguntas abiertas, fases posteriores |
+| KB Abiertas | knowledge-base/10_preguntas_abiertas.md | ⚠️ Prioridad Alta a resolver antes/durante implementación |
 | KB WhatsApp | knowledge-base/11_whatsapp_y_recordatorios.md | Canal, plantillas, motor, costos |
 | Discovery | discovery/discovery.md | Competitor research (22 fuentes, fetched 2026-10-08) |
+| Orchestrator state | .active-orchestrator-state.json | step is "done" — do NOT change step/owner; MAY update state.registry only |
 
-> Note: project CLAUDE.md / AGENTS.md do not exist yet (generated in a later agent-instruction phase). Conventions section above seeds from knowledge-base/ + CHANGES.md. No extra hops needed — all paths extracted.
 > Stack: Python/FastAPI + SQLAlchemy + PostgreSQL + Redis + React+TS+Vite (Docker Compose), JWT + RBAC (admin/recepcion/odontologo), Alembic versioned migrations, pytest + httpx/TestClient + Playwright.
 
 Read the convention files listed above for project-specific patterns and rules. All referenced paths have been extracted — no need to read index files to discover more.

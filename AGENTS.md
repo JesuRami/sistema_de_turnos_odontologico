@@ -62,7 +62,8 @@ La fuente de verdad del dominio vive en `knowledge-base/`. **Leé el archivo rel
 
 Cargá la skill correspondiente al contexto ANTES de escribir código.
 
-> Los compact rules de cada skill los resuelve el orquestador desde `.atl/skill-registry.md` (generado por `skill-registry`; no versionado — no está en el repo). Esta tabla solo mapea skill→rol.
+> Las 12 skills de código están instaladas project-local en `.agents/skills/` (fijadas con `skills-lock.json`, viajan con el repo); las skills de fundación/orquestación permanecen globales.
+> Los compact rules se resuelven en runtime desde `.atl/skill-registry.md` (generado por `skill-registry`, versionado en el repo). Esta tabla solo mapea skill→rol.
 
 ---
 

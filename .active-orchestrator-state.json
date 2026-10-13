@@ -181,9 +181,12 @@
   "version": 4,
   "registry": {
     "created_by": "skill-registry",
-    "file": ".atl/skill-registry.md"
+    "file": ".atl/skill-registry.md",
+    "scope": "project-local",
+    "rebuilt": "2026-10-13"
   },
   "skills": {
+    "scope": "project-local",
     "recommended": [
       {
         "skill": "vercel-labs/agent-skills@vercel-react-best-practices",

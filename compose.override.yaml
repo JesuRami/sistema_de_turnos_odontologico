@@ -1,0 +1,14 @@
+# Override de desarrollo: hot-reload (bind-mounts solo en dev).
+services:
+  api:
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./backend:/srv/app/backend:ro
+  worker:
+    volumes:
+      - ./backend:/srv/app/backend:ro
+  frontend:
+    build:
+      target: dev
+    ports:
+      - "5174:5173"

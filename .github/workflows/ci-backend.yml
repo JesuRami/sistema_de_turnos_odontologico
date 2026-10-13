@@ -1,0 +1,54 @@
+name: backend
+
+on:
+  push:
+    paths: ["backend/**", "pyproject.toml", "requirements.txt", "alembic.ini", ".env.example"]
+  pull_request:
+    paths: ["backend/**", "pyproject.toml", "requirements.txt", "alembic.ini", ".env.example"]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.8-bookworm
+        env:
+          POSTGRES_USER: turnos
+          POSTGRES_PASSWORD: ci-secret
+          POSTGRES_DB: turnos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U turnos -d turnos"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.4-bookworm
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://turnos:ci-secret@localhost:5432/turnos
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-secret-no-produccion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar con uv (fallback pip)
+        run: |
+          if command -v uv >/dev/null 2>&1; then uv pip install --system -r requirements.txt;
+          else pip install -r requirements.txt; fi
+      - name: Migraciones (upgrade head, downgrade -1, upgrade head)
+        run: |
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
+      - name: Tests (pytest + httpx)
+        run: pytest -q
+      - name: Lint (ruff) y formato (black)
+        run: |
+          ruff check backend
+          black --check backend
+      - name: Tipos (mypy)
+        run: mypy backend

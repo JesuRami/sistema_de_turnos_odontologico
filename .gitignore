@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+uv.lock
+# Env (never commit real secrets — hard rule 6)
+.env
+.env.*
+!.env.example
+# Pytest / coverage / mypy / ruff
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+# Node / frontend
+node_modules/
+frontend/dist/
+# Docker / volumes
+pgdata/
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

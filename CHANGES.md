@@ -117,7 +117,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ## FASE 0 — Cimientos
 
 ### [C-01] `foundation-setup`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-10-13 → `openspec/changes/archive/2026-10-13-c-01-foundation-setup/`)
 - **Scope**: Scaffolding completo del monorepo + infraestructura base (DD-01, DD-06, DD-07)
   - Estructura `backend/` (Python + FastAPI async, `app/main.py` con CORS + rate-limit global, `app/routers|services|schemas` por dominio), `frontend/` (React 18 + TS + Vite, Tailwind 3), `backend/tests/` (pytest)
   - Paquetes FastAPI vacíos (`routers/`+`services/`+`schemas/`): `auth`, `clinic`, `agenda`, `booking_public`, `waiting_list`, `reminders`, `notifications`, `users`, `reports`; modelos SQLAlchemy 2.x async en `app/models/` + entrypoint `app/worker/`

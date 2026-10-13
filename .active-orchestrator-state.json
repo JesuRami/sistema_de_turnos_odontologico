@@ -12,83 +12,83 @@
     "competitors": [
       {
         "name": "OdonFlow",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "DentalCore",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Bilog",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "DentalTec",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "FLAP",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "ClinIA / OdontoClinIA",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Odontoly",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Livio",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "DentalCor",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Odonthia",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "DenPro",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Dentatools",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Dentalink",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Dentidesk",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Doctocliq",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "AgendaPro",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Clinic Cloud",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Medesk",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Gesden",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       },
       {
         "name": "Doctoralia PRO",
-        "notes_file": "discovery/discovery.md"
+        "notes_file": "docs/discovery/discovery.md"
       }
     ],
     "created_by": "discovery-research",

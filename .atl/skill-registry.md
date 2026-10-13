@@ -159,7 +159,7 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 ### discovery-research
 - Runs Discovery BEFORE the KB: competitor research via web-scraper + guided Q&A over the full checklist (problem, users, use cases, competitors, features, business rules, integrations, constraints, risks, open questions)
 - Never complete a checklist point with an assumption when it can be asked or researched
-- Output (discovery/discovery.md + state.discovery) is INPUT to kb-creator, not a replacement
+- Output (docs/discovery/discovery.md + state.discovery) is INPUT to kb-creator, not a replacement
 
 ### find-skills
 - Use when user asks how to do X or whether a skill exists for X; search via `npx skills find [query] [--owner <owner>]`
@@ -201,7 +201,7 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 | KB Decisiones | knowledge-base/09_decisiones_y_supuestos.md | DD-01..DD-07, SU-03/SU-04/SU-06/SU-07 |
 | KB Abiertas | knowledge-base/10_preguntas_abiertas.md | ⚠️ Prioridad Alta a resolver antes/durante implementación |
 | KB WhatsApp | knowledge-base/11_whatsapp_y_recordatorios.md | Canal, plantillas, motor, costos |
-| Discovery | discovery/discovery.md | Competitor research (22 fuentes, fetched 2026-10-08) |
+| Discovery | docs/discovery/discovery.md | Competitor research (22 fuentes, fetched 2026-10-08) |
 | Orchestrator state | .active-orchestrator-state.json | step is "done" — do NOT change step/owner; MAY update state.registry only |
 
 > Stack: Python/FastAPI + SQLAlchemy + PostgreSQL + Redis + React+TS+Vite (Docker Compose), JWT + RBAC (admin/recepcion/odontologo), Alembic versioned migrations, pytest + httpx/TestClient + Playwright.

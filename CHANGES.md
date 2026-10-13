@@ -396,7 +396,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - `knowledge-base/10_preguntas_abiertas.md` §Registro para fases posteriores (clínica)
   - `knowledge-base/03_actores_y_roles.md` §Reglas transversales (recepción sin clínica)
   - `knowledge-base/09_decisiones_y_supuestos.md` §DD-02
-  - `discovery/discovery.md` §D3 MVP sugerido (ficha clínica), §C4.5
+  - `docs/discovery/discovery.md` §D3 MVP sugerido (ficha clínica), §C4.5
 
 ---
 
@@ -408,7 +408,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 - **Leer antes**:
   - `knowledge-base/10_preguntas_abiertas.md` §Registro para fases posteriores (cobros)
   - `knowledge-base/09_decisiones_y_supuestos.md` §DD-01 (stack Python/FastAPI; SDK MP vía REST), §DD-02
-  - `discovery/discovery.md` §C4.4 (cobros que concilian solos)
+  - `docs/discovery/discovery.md` §C4.4 (cobros que concilian solos)
 
 ---
 
@@ -419,7 +419,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 - **Governance**: CRITICO
 - **Leer antes**:
   - `knowledge-base/10_preguntas_abiertas.md` §Registro para fases posteriores (fiscal)
-  - `discovery/discovery.md` §C2.7 (ARCA + MP en el mismo cobro)
+  - `docs/discovery/discovery.md` §C2.7 (ARCA + MP en el mismo cobro)
 
 ---
 
@@ -431,7 +431,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 - **Leer antes**:
   - `knowledge-base/10_preguntas_abiertas.md` §Registro para fases posteriores (fiscal/OS)
   - `knowledge-base/09_decisiones_y_supuestos.md` §SU-03 (identidad fuerte DNI/CUIL, reconciliación de pacientes)
-  - `discovery/discovery.md` §C2.1, §C2.2 (validación preventiva, liquidaciones)
+  - `docs/discovery/discovery.md` §C2.1, §C2.2 (validación preventiva, liquidaciones)
 
 ---
 
@@ -443,6 +443,6 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 - **Leer antes**:
   - `knowledge-base/10_preguntas_abiertas.md` §IN-02, §Registro para fases posteriores (crecimiento)
   - `knowledge-base/09_decisiones_y_supuestos.md` §DD-03 (deuda permisos), §DD-07 (multi-tenant lógico)
-  - `discovery/discovery.md` §D3 Para etapas posteriores
+  - `docs/discovery/discovery.md` §D3 Para etapas posteriores
 
 ---

@@ -45,7 +45,7 @@ La fuente de verdad del dominio vive en `knowledge-base/`. **Leé el archivo rel
 | [09_decisiones_y_supuestos.md](knowledge-base/09_decisiones_y_supuestos.md) | Decisiones DD-01…DD-07 + supuestos SU-01…SU-07 |
 | [10_preguntas_abiertas.md](knowledge-base/10_preguntas_abiertas.md) | ⚠️ Inconsistencias a resolver ANTES de codear |
 | [11_whatsapp_y_recordatorios.md](knowledge-base/11_whatsapp_y_recordatorios.md) | Canal WhatsApp Cloud API, plantillas, reminder engine, costos |
-| [discovery/discovery.md](discovery/discovery.md) | Research de competidores (22 fuentes, 2026-10-08) |
+| [docs/discovery/discovery.md](docs/discovery/discovery.md) | Research de competidores (22 fuentes, 2026-10-08) |
 
 > ⚠️ Resolver las preguntas de prioridad **Alta** de `10_preguntas_abiertas.md` antes de arrancar el primer change.
 

@@ -1,7 +1,7 @@
 # Sistema de Turnos Odontológico — Instrucciones para Agentes
 
 > Este archivo (y su copia `CLAUDE.md`) es lo PRIMERO que todo agente lee al entrar al repo.
-> Generado a partir de `knowledge-base/` y `CHANGES.md` (12 reglas duras confirmadas por el usuario). No editar a mano sin re-sincronizar ambos archivos (`diff AGENTS.md CLAUDE.md`).
+> Generado a partir de `knowledge-base/` y `CHANGES.md` (12 reglas duras confirmadas por el usuario + 1 regla de dominio agregada a mano). No editar a mano sin re-sincronizar ambos archivos (`diff AGENTS.md CLAUDE.md`).
 
 ---
 
@@ -73,7 +73,7 @@ El plan de implementación completo está en [CHANGES.md](CHANGES.md). Resumen:
 
 - **Total**: 19 changes (C-01…C-19) en 6 fases (Fase 0 cimientos, Fase 1 agenda core, Fase 2 reserva online, Fase 3 recordatorios WhatsApp, Fase 4 lista de espera/reportes/piloto, Fase 5 circuito clínico-financiero posterior).
 - **Camino crítico** (9 changes): `C-01 → C-02 → C-03 → C-04 → C-05 → C-07 → C-08 → C-10 → C-14`.
-- **Primer change**: `C-01 foundation-setup` — scaffolding completo del monorepo + infraestructura base (DD-01, DD-06, DD-07): estructura `backend/` (FastAPI async, routers/services/schemas por dominio) + `frontend/` (React 18 + TS + Vite + Tailwind 3) + `backend/tests/` (pytest); Postgres 15 + Redis 7 + Alembic; worker async; `.env.example` completo; `Dockerfile` + `docker-compose.yml` (`api`, `db`, `redis`, `worker`, `frontend`); CI con jobs paralelos backend/frontend.
+- **Primer change**: `C-01 foundation-setup` — scaffolding completo del monorepo + infraestructura base (DD-01, DD-06, DD-07): estructura `backend/` (FastAPI async, routers/services/schemas por dominio) + `frontend/` (React 18 + TS + Vite + Tailwind 3) + `backend/tests/` (pytest); Postgres 15 + Redis 7 + Alembic; worker async; `.env.example` completo; `Dockerfile` + `compose.yaml` (`api`, `db`, `redis`, `worker`, `frontend`); CI con jobs paralelos backend/frontend.
 
 **Antes de cualquier `/opsx:propose`**: leé [CHANGES.md](CHANGES.md), identificá las dependencias del change y los archivos de "Leer antes".
 
@@ -92,7 +92,7 @@ El plan de implementación completo está en [CHANGES.md](CHANGES.md). Resumen:
 - NUNCA compilar/buildear ni commitear sin pedido explícito del usuario → solo ejecutar builds/commits cuando se soliciten.
 - Commits en formato conventional commits, sin co-autoría de IA → mensajes `tipo(ámbito): descripción`, sin líneas `Co-Authored-By` ni firmas de asistente.
 
-**Reglas específicas del proyecto (12 confirmadas por el usuario; son contrato, romperlas es un defecto):**
+**Reglas específicas del proyecto (12 confirmadas por el usuario + 1 agregada a mano; son contrato, romperlas es un defecto):**
 
 1. NUNCA validar solapamientos solo en backend → imponer EXCLUDE USING gist sobre tstzrange por (profesional, sillón) WHERE estado vigente; colisión → 409 + turnos alternativos.
 2. NUNCA schema Pydantic v2 sin extra='forbid' → ConfigDict(extra='forbid') en bordes (booking público, webhooks, admin).
@@ -106,6 +106,7 @@ El plan de implementación completo está en [CHANGES.md](CHANGES.md). Resumen:
 10. NUNCA JWT largo ni en localStorage → access ≤15 min, refresh rotativo con reuse-detection, cookie HttpOnly Secure SameSite=Lax; pin de alg, validar iss/aud/exp.
 11. NUNCA CREATE INDEX bloqueante ni FK/CHECK sin validación diferida → CONCURRENTLY + NOT VALID → VALIDATE; cambios de tipo en 3 pasos.
 12. NUNCA imagen Docker :latest ni contenedor sin healthcheck → tags pineados, depends_on con pg_isready/redis-cli ping, un proceso por contenedor.
+13. NUNCA datos reales de pacientes en el repo, tests, seeds, fixtures ni ejemplos → solo datos sintéticos obviamente falsos (nombres inventados, DNI/teléfonos ficticios, dominio example.com); nunca PII (nombre, DNI, teléfono, email) en logs ni en mensajes de error. (Regla agregada a mano, propia del dominio.)
 
 ---
 

@@ -123,7 +123,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - Paquetes FastAPI vacíos (`routers/`+`services/`+`schemas/`): `auth`, `clinic`, `agenda`, `booking_public`, `waiting_list`, `reminders`, `notifications`, `users`, `reports`; modelos SQLAlchemy 2.x async en `app/models/` + entrypoint `app/worker/`
   - Postgres 15 + Redis 7 + migraciones Alembic versionadas (una por change, DDL para EXCLUDE); worker async Redis (reminder scheduler, WhatsApp queue/outbox, waiting-list jobs — ver DD-06)
   - `.env.example` con `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `JWT_ACCESS_MINUTES`, `WHATSAPP_TOKEN`, `META_*`, `EMAIL_*`, `CLINIC_TZ_DEFAULT`, `BOOKING_RATE_LIMIT`, `MANAGE_TOKEN_TTL_H`, `FRONTEND_PUBLIC_URL`, `CORS_ORIGINS`
-  - `Dockerfile` backend (api + worker) + `docker-compose.yml` con servicios `api`, `db`, `redis`, `worker`, `frontend` + Postgres gestionado por tenant (DD-07: 1 DB por clínica)
+  - `Dockerfile` backend (api + worker) + `compose.yaml` con servicios `api`, `db`, `redis`, `worker`, `frontend` + Postgres gestionado por tenant (DD-07: 1 DB por clínica)
   - CI (jobs paralelos backend/frontend) + pytest + httpx/TestClient + Playwright instalados; deps Python vía `venv`+`pip` o `uv` (`pyproject.toml`/`requirements.txt`: fastapi, sqlalchemy[asyncio], asyncpg, alembic, redis, pydantic-settings)
 - **Dependencias**: ninguna
 - **Governance**: BAJO

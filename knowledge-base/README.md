@@ -1,6 +1,6 @@
 # Sistema de Turnos Odontológico — Base de Conocimiento
 
-Base de conocimiento generada en modo interactivo (Q&A estratégico validado, sin preguntas pendientes al equipo salvo las registradas en `10`). Alcance: **MVP agenda-first v1.0** — multi-chair agenda + reserva online 24/7 + recordatorios WhatsApp. Clínica, cobros, ARCA y obras sociales son fases posteriores.
+Base de conocimiento generada en modo interactivo (Q&A estratégico validado, sin preguntas pendientes al equipo salvo las registradas en `10`). Alcance: **MVP agenda-first v1.0** — multi-chair agenda + reserva online 24/7 + recordatorios WhatsApp. Clínica, cobros, ARCA y obras sociales son fases posteriores. 
 
 ## Índice de Archivos
 

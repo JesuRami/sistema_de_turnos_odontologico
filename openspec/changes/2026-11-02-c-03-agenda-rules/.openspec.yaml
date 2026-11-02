@@ -1,0 +1,6 @@
+schema: 1
+change: c-03-agenda-rules
+title: Gestión de Agenda, Reglas de Disponibilidad e Integración MCP
+status: proposed
+created: 2026-11-02
+target: backend

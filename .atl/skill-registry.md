@@ -207,3 +207,8 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 > Stack: Python/FastAPI + SQLAlchemy + PostgreSQL + Redis + React+TS+Vite (Docker Compose), JWT + RBAC (admin/recepcion/odontologo), Alembic versioned migrations, pytest + httpx/TestClient + Playwright.
 
 Read the convention files listed above for project-specific patterns and rules. All referenced paths have been extracted — no need to read index files to discover more.
+
+## agenda-schedule-validator
+- **Propósito:** Validar coherencia de agenda, duraciones de slot y asignación de sillones odontológicos.
+- **Ubicación:** `.agents/skills/agenda-schedule-validator/SKILL.md`
+- **Uso:** Durante la fase de exploración y especificación de cambios en el módulo de turnos.

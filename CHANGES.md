@@ -136,12 +136,12 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-02] `core-models`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-11-02 → `openspec/changes/archive/2026-11-02-c-02-core-models/`)
 - **Scope**: Entidades base + migraciones iniciales + seed mínimo (sin turnos todavía)
   - Modelos: `Clinic` (slug único, timezone, `cancellation_window_hours=24`, `reminder_steps` jsonb), `Professional`, `Chair`, `ScheduleRule`, `Patient` (liviano: nombre + teléfono E.164/email, `whatsapp_opt_in`, DNI opcional no único — SU-03), `User` (enum `admin/recepcion/odontologo`, argon2id, `professional_id` nullable)
   - `clinic_id` obligatorio en todas las tablas operativas (partición lógica futura, DD-07)
-  - Migración 001: tablas core + índices (`slug`, `(clinic_id, active)`, `(clinic_id, phone_e164)`, trigram en `full_name`)
-  - Seed por clínica: 1 clinic + 1 admin + 1 chair "Sillón 1" + 1 professional ejemplo inactivo + 3 `notification_template` placeholder + catálogo de motivos de bloqueo
+  - Migración `c02_core_models` (revises `c01_base`): tablas core + índices (`slug`, `(clinic_id, active)`, `(clinic_id, phone_e164)`, trigram en `full_name`)
+  - Seed por clínica: 1 clinic + 1 admin + 1 chair "Sillón 1" + 1 professional ejemplo inactivo (sin `notification_template` ni motivos de bloqueo: ver C-04 y C-09)
   - Tests: constraints de unicidad, match de paciente por teléfono normalizado
 - **Dependencias**: C-01
 - **Governance**: CRITICO
@@ -181,7 +181,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - `Block` con al menos un objetivo (RN-BL-01); creación que pisa turnos vigentes exige resolución explícita en la misma transacción (RN-BL-02); pasados inmutables (RN-BL-03); feriados como bloqueo manual multi-recurso (RN-BL-04)
   - Políticas de clínica editables: ventana de cancelación (default 24 h), pasos de recordatorio (72/24/3 h), tope sobreturnos (default 2), expiración de ofertas (default 4 h); cambios solo afectan turnos futuros (US-004 CA-2)
   - Desactivar profesional/sillón impide nuevas reservas, conserva historial (US-001 CA-1)
-  - Migración 003: `schedule_rule`, `block`, columnas de política en `clinic`
+  - Migración 003: `block` con catálogo de motivos de bloqueo, columnas de política en `clinic`; anti-solape RN-AG-05 sobre `schedule_rule` (tabla creada en C-02)
   - Tests: solapamiento de reglas, bloqueo con turnos afectados, cambio de políticas no toca jobs programados
 - **Dependencias**: C-03
 - **Governance**: MEDIO
@@ -277,7 +277,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - Worker tick 60 s con `FOR UPDATE SKIP LOCKED LIMIT 100`; pre-envío: turno vigente (si no → `cancelled`, RN-CX-03), opt-in del canal (RN-WA-01), plantilla activa, ventana 24 h de Meta
   - Reprogramar recalcula pendientes; cancelar marca `cancelled`; anti-ruido: solo pasos futuros si el turno se crea cerca del inicio; tope: jamás enviar de un turno ya iniciado (→ `skipped`)
   - Email como respaldo/escalado tras 3 fallos con backoff (5 min → 30 min → 2 h → `failed`); `provider_message_id` guardado; costo atribuible por clínica y paso (RN-WA-05)
-  - Migración 005: `reminder_job`, `delivery_event`, `notification_template`, `consent`
+  - Migración 005: `reminder_job`, `delivery_event`, `notification_template`, `consent`; seed de las 3 plantillas placeholder (extiende `app.seed`)
   - Tests: caída del worker (jobs sobreviven), doble-tick no duplica, opt-out a mitad de secuencia → `skipped`
 - **Dependencias**: C-05
 - **Governance**: ALTO

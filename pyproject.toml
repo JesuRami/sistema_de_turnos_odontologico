@@ -15,7 +15,8 @@ dependencies = [
   "pydantic>=2.0,<3.0",
   "pydantic-settings>=2.0,<3.0",
   "python-jose[cryptography]>=3.3,<4.0",
-  "passlib[argon2]>=1.7,<2.0",
+  "argon2-cffi>=23.1,<26.0",
+  "phonenumbers>=8.13,<9.0",
   "httpx>=0.27,<0.28",
 ]
 

@@ -7,16 +7,17 @@ import asyncio
 import os
 from logging.config import fileConfig
 
+import app.models  # noqa: F401  # registra los modelos en Base.metadata
+from alembic import context
+from app.core.database import async_database_url
 from app.models.base import Base
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
-
 config = context.config
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
@@ -25,8 +26,8 @@ def _database_url() -> str:
     url = os.environ.get("DATABASE_URL", "")
     if not url:
         raise SystemExit("DATABASE_URL es requerida para migrar")
-    # asyncpg es el driver async; Alembic sync usa psycopg si hiciera falta.
-    return url.replace("+asyncpg", "")
+    # El engine online es async: se fuerza el driver asyncpg.
+    return async_database_url(url)
 
 
 def run_migrations_offline() -> None:

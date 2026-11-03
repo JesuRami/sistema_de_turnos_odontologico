@@ -268,10 +268,24 @@
   `id`; admin desactiva a A y su siguiente request da `401`; una clínica B no
   filtra datos. Verificación:
   `pytest backend/tests/test_auth_integration.py -q`.
-- [ ] 9.2 Gate final del change: `pytest -q` contra Postgres 15 + Redis 7,
+- [x] 9.2 Gate final del change: `pytest -q` contra Postgres 15 + Redis 7,
   `ruff check backend`, `black --check backend`, `mypy backend` (strict) y
   `openspec validate c-03-auth-rbac --strict`. Registrar la tabla "TDD Cycle
   Evidence" y las salidas resumidas en el resumen del apply.
+  - **Cerrado 2026-11-03** en contenedor `python:3.12.7` (imagen `api`) con
+    `postgres:15.8-bookworm` + `redis:7.4-bookworm` en `localhost`, sin `.env`
+    (equivalente a CI): `alembic upgrade head → downgrade -1 → upgrade head` OK;
+    `pytest -q` **298 passed, 0 skipped**; `ruff`, `black --check`, `mypy`
+    (124 archivos) limpios; `openspec validate --specs --strict` 11/11 (el
+    change ya estaba archivado, se validaron los specs fusionados).
+  - La primera corrida real destapó defectos que el skip local ocultaba:
+    | Defecto | Rojo | Verde |
+    |---|---|---|
+    | `/ready` pasaba `postgresql+asyncpg://` a asyncpg → 503 siempre | nuevo `test_ready_con_dependencias_arriba_responde_200` falla (503) | DSN normalizado en `main.py` |
+    | `test_ready_sin_dependencias_responde_503` pasaba solo por ese bug | falla al corregir el DSN (200) | apunta explícitamente a puertos cerrados |
+    | `test_get_db` asumía `is_active=False` tras `close()` (falso en SQLAlchemy 2.0) | falla | verifica identity map vacío + sin transacción |
+    | helper `_evento(user=None)` hacía `None.id` | `AttributeError` | `user_id` nulo si no hay usuario |
+    | worker y comandos Docker (`backend.app.*` vs imports `app.*`, DSN `+asyncpg`) | contenedores `api`/`worker` no arrancaban | `PYTHONPATH=/srv/app/backend` + `app.main:app` / `app.worker.entrypoint` |
 - [x] 9.3 Revisión de seguridad del propio change (jwt-security-review +
   auth-implementation-patterns): checklist escrita en
   `backend/README.md` §Seguridad — alg pineado, sin `alg=none`, secreto ≥32

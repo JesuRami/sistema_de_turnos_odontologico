@@ -1,6 +1,8 @@
-"""Plantilla semanal de disponibilidad profesional+sillón (C-02: solo estructura).
+"""Plantilla semanal de disponibilidad profesional+sillón (C-02; anti-solape C-04).
 
-El anti-solape de reglas (RN-AG-05) y los bloqueos llegan en C-04.
+RN-AG-05 / US-002 CA-2: dos reglas activas del mismo (clínica, profesional,
+sillón, día) no pueden intersectar franja ni vigencia. Lo garantiza un EXCLUDE
+en la base (regla dura 1), no el servicio.
 """
 
 import uuid
@@ -16,12 +18,18 @@ from sqlalchemy import (
     SmallInteger,
     Time,
     func,
+    literal_column,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKeyMixin
+
+# Postgres no tiene `timerange`: la franja se proyecta sobre una fecha fija
+# (`date + time` es inmutable). `valid_to` es inclusivo y NULL = sin fin.
+SLOT_RANGE_SQL = "tsrange(DATE '2000-01-01' + start_time, DATE '2000-01-01' + end_time)"
+VALIDITY_RANGE_SQL = "daterange(valid_from, valid_to, '[]')"
 
 
 class ScheduleRule(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
@@ -38,6 +46,17 @@ class ScheduleRule(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         CheckConstraint("slot_duration_min > 0", name="slot_positive"),
         CheckConstraint("valid_to IS NULL OR valid_from <= valid_to", name="validity_order"),
         Index(None, "professional_id", "chair_id", "weekday"),
+        ExcludeConstraint(
+            ("clinic_id", "="),
+            ("professional_id", "="),
+            ("chair_id", "="),
+            ("weekday", "="),
+            (literal_column(SLOT_RANGE_SQL), "&&"),
+            (literal_column(VALIDITY_RANGE_SQL), "&&"),
+            name="ex_schedule_rule_no_overlap",
+            using="gist",
+            where=text("active"),
+        ),
     )
 
     professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)

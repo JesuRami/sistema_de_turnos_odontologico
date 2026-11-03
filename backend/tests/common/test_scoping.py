@@ -50,8 +50,15 @@ async def _escenario(session: AsyncSession) -> dict[str, Any]:
     sillon_b = await make_chair(session, clinica_b)
     prof_b = await make_professional(session, clinica_b, display_name="Dr. Ficticio B")
 
-    a1 = [await make_schedule_rule(session, clinica_a, prof_a1, sillon_a) for _ in range(2)]
-    a2 = [await make_schedule_rule(session, clinica_a, prof_a2, sillon_a) for _ in range(2)]
+    # Días distintos: el EXCLUDE de C-04 prohíbe reglas solapadas del mismo profesional+sillón.
+    a1 = [
+        await make_schedule_rule(session, clinica_a, prof_a1, sillon_a, weekday=dia)
+        for dia in range(2)
+    ]
+    a2 = [
+        await make_schedule_rule(session, clinica_a, prof_a2, sillon_a, weekday=dia)
+        for dia in range(2)
+    ]
     b = [await make_schedule_rule(session, clinica_b, prof_b, sillon_b)]
     return {
         "clinica_a": clinica_a,

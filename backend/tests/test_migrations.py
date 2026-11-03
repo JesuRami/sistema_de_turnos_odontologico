@@ -1,10 +1,20 @@
-"""Migración c02_core_models contra Postgres 15 real (DB temporal propia por test)."""
+"""Migraciones c02→c04 contra Postgres 15 real (DB temporal propia por test)."""
 
 from alembic import command
 
 from tests.db_utils import alembic_config, fetch_rows
 
-TABLAS = {"clinic", "professional", "chair", "schedule_rule", "patient", "user", "auth_event"}
+TABLAS = {
+    "clinic",
+    "professional",
+    "chair",
+    "schedule_rule",
+    "patient",
+    "user",
+    "auth_event",
+    "block",
+    "agenda_config_event",
+}
 INDICES = {
     "uq_clinic_slug",
     "ix_professional_clinic_id_active",
@@ -15,7 +25,11 @@ INDICES = {
     "ix_auth_event_clinic_id_created_at",
     "ix_auth_event_user_id_created_at",
     "uq_user_clinic_id_id",
+    "ex_schedule_rule_no_overlap",
+    "ix_block_clinic_id_starts_at",
+    "ix_agenda_config_event_clinic_id_created_at",
 }
+ENUMS = {"user_role", "auth_event_type", "block_reason", "config_entity", "config_action"}
 
 
 def _tablas(url: str) -> set[str]:
@@ -72,7 +86,7 @@ def test_upgrade_crea_tablas_e_indices_del_change(temp_database: str) -> None:
 
     assert _tablas(temp_database) == TABLAS
     assert INDICES <= _indices(temp_database)
-    assert _enums(temp_database) == {"user_role", "auth_event_type"}
+    assert _enums(temp_database) == ENUMS
 
 
 def test_upgrade_crea_los_objetos_de_auth_de_c03(temp_database: str) -> None:
@@ -99,6 +113,59 @@ def test_upgrade_crea_los_objetos_de_auth_de_c03(temp_database: str) -> None:
         temp_database,
     )
     assert {str(r[0]) for r in triggers} == {"trg_auth_event_no_mutate"}
+
+
+def test_upgrade_crea_los_objetos_de_agenda_de_c04(temp_database: str) -> None:
+    """WHEN upgrade head THEN existen EXCLUDE, columnas de política, block y su auditoría."""
+    command.upgrade(alembic_config(), "head")
+
+    exclude = fetch_rows(
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+        "WHERE conname = 'ex_schedule_rule_no_overlap'",
+        temp_database,
+    )
+    assert len(exclude) == 1
+    assert "EXCLUDE USING gist" in str(exclude[0][0])
+    assert "WHERE (active)" in str(exclude[0][0])
+    columnas_clinic = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'clinic'",
+            temp_database,
+        )
+    }
+    assert {"max_overbookings_per_day", "waitlist_offer_ttl_hours"} <= columnas_clinic
+    no_validados = fetch_rows(
+        "SELECT conname FROM pg_constraint WHERE conrelid = 'clinic'::regclass "
+        "AND NOT convalidated",
+        temp_database,
+    )
+    assert no_validados == []
+    triggers = fetch_rows(
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'agenda_config_event'::regclass "
+        "AND NOT tgisinternal",
+        temp_database,
+    )
+    assert {str(r[0]) for r in triggers} == {"trg_agenda_config_event_no_mutate"}
+
+
+def test_downgrade_a_c03_elimina_los_objetos_de_c04(temp_database: str) -> None:
+    """WHEN downgrade c03_auth_rbac THEN no queda ningún objeto de c04."""
+    cfg = alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "c03_auth_rbac")
+
+    assert {"block", "agenda_config_event"}.isdisjoint(_tablas(temp_database))
+    assert {"block_reason", "config_entity", "config_action"}.isdisjoint(_enums(temp_database))
+    assert "ex_schedule_rule_no_overlap" not in _indices(temp_database)
+    columnas_clinic = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'clinic'",
+            temp_database,
+        )
+    }
+    assert {"max_overbookings_per_day", "waitlist_offer_ttl_hours"}.isdisjoint(columnas_clinic)
 
 
 def test_downgrade_a_c02_elimina_los_objetos_de_c03(temp_database: str) -> None:

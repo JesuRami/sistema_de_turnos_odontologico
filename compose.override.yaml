@@ -1,7 +1,7 @@
 # Override de desarrollo: hot-reload (bind-mounts solo en dev).
 services:
   api:
-    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     volumes:
       - ./backend:/srv/app/backend:ro
   worker:
@@ -10,5 +10,20 @@ services:
   frontend:
     build:
       target: dev
+    environment:
+      # El proxy de Vite corre dentro del contenedor: el backend es el servicio `api`.
+      API_PROXY_TARGET: http://api:8000
+    volumes:
+      # Hot-reload: código y config montados; `node_modules` queda el de la imagen.
+      - ./frontend/src:/srv/web/src:ro
+      - ./frontend/index.html:/srv/web/index.html:ro
+      - ./frontend/vite.config.ts:/srv/web/vite.config.ts:ro
     ports:
       - "5174:5173"
+    healthcheck:
+      # En dev corre Vite (5173), no nginx (80): el healthcheck base no aplica.
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

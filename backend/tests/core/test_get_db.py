@@ -34,4 +34,6 @@ async def test_get_db_entrega_sesion_usable_y_la_cierra(db_session: AsyncSession
     finally:
         await cast(Any, generador).aclose()
 
-    assert session.is_active is False
+    # `close()` expulsa el identity map y libera la conexión (`is_active` sigue True en 2.0).
+    assert len(session.identity_map) == 0
+    assert session.in_transaction() is False

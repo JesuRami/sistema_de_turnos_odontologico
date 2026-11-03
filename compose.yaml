@@ -65,7 +65,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["python", "-m", "backend.app.worker.entrypoint"]
+    command: ["python", "-m", "app.worker.entrypoint"]
     env_file:
       - .env
     environment:

@@ -5,10 +5,20 @@ teléfonos de rango ficticio. Nunca datos reales.
 """
 
 import itertools
-from datetime import date, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
-from app.models import Chair, Clinic, Patient, Professional, ScheduleRule, User, UserRole
+from app.models import (
+    Block,
+    BlockReason,
+    Chair,
+    Clinic,
+    Patient,
+    Professional,
+    ScheduleRule,
+    User,
+    UserRole,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _counter = itertools.count(1)
@@ -89,6 +99,38 @@ async def make_schedule_rule(
     session.add(rule)
     await session.flush()
     return rule
+
+
+async def make_block(
+    session: AsyncSession,
+    clinic: Clinic,
+    *,
+    professional: Professional | None = None,
+    chair: Chair | None = None,
+    starts_in: timedelta = timedelta(days=1),
+    ends_at_delta: timedelta = timedelta(hours=8),
+    **overrides: Any,
+) -> Block:
+    """Bloqueo sintético que arranca en `starts_in` desde ahora y dura `ends_at_delta`.
+
+    Sin `created_by_user_id` explícito crea un admin sintético de la clínica.
+    """
+    starts_at = datetime.now(UTC) + starts_in
+    if "created_by_user_id" not in overrides:
+        overrides["created_by_user_id"] = (await make_user(session, clinic)).id
+    values: dict[str, Any] = {
+        "clinic_id": clinic.id,
+        "professional_id": professional.id if professional else None,
+        "chair_id": chair.id if chair else None,
+        "starts_at": starts_at,
+        "ends_at": starts_at + ends_at_delta,
+        "reason": BlockReason.VACACIONES,
+    }
+    values.update(overrides)
+    block = Block(**values)
+    session.add(block)
+    await session.flush()
+    return block
 
 
 async def make_patient(session: AsyncSession, clinic: Clinic, **overrides: Any) -> Patient:

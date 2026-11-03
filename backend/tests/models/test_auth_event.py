@@ -23,7 +23,7 @@ async def _evento(db_session: AsyncSession, **overrides: Any) -> AuthEvent:
         user = await make_user(db_session, clinic)
     values: dict[str, Any] = {
         "clinic_id": clinic.id,
-        "user_id": user.id,
+        "user_id": user.id if user is not None else None,
         "event": AuthEventType.LOGIN_SUCCESS,
         "payload": {"reason": "ok"},
     }

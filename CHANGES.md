@@ -153,7 +153,8 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-03] `auth-rbac`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-11-03 → `openspec/changes/archive/2026-11-02-c-03-auth-rbac/`; gate 9.2 verde contra Postgres 15 + Redis 7)
+- **Notas de cierre**: la migración real es `c03_auth_rbac` (no "migración 002"); la familia de refresh tokens vive en Redis (`REDIS_AUTH_DB`), no en tablas. C-04/C-05 consumen `require_roles` + `scope_by_professional` sin filtros propios.
 - **Scope**: Autenticación del personal + RBAC de 4 roles (DD-03, DD-04)
   - `POST /auth/login` (email+password, argon2id, rate-limit 5/60s por IP+email), `POST /auth/refresh` (rotativo con reuse-detection, cookie HttpOnly secure/samesite=lax), `POST /auth/logout`, `GET /auth/me`
   - JWT access 15 min (`sub`, `clinic_id`, `roles`, `email`, `jti`, `type`, `iat`, `exp`)
@@ -174,7 +175,8 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ## FASE 1 — Agenda core (el núcleo de consistencia)
 
 ### [C-04] `agenda-config`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-11-03; rehecho tras un archive vacío del 2026-11-02, ver proposal)
+- **Notas de cierre**: migración `c04_agenda_config` (no "003"). Anti-solape vía `EXCLUDE` con excepción acotada a la regla 11 (Postgres no admite `NOT VALID`/`CONCURRENTLY` en EXCLUDE). Políticas en horas (`max_overbookings_per_day`, `waitlist_offer_ttl_hours`). Auditoría en `agenda_config_event` (append-only). **Diferido con contrato**: RN-BL-02 → C-05 agrega el chequeo de turnos afectados a `BlocksService.create/update`; rechazo `409` al reservar sobre profesional/sillón inactivo → C-05 (recepción) y C-07 (online); US-004 CA-2 → C-09 copia el paso de recordatorio al programar el job y nunca relee la política.
 - **Scope**: Configuración de agenda por la clínica — backend (US-001 a US-004)
   - Modelos/CRUD: `GET/POST/PUT /professionals`, `/chairs`, `/schedules`, `/blocks` (admin CRUD; recepción R; odontólogo R propios)
   - `ScheduleRule` por (professional, chair, weekday) con vigencia desde/hasta; rechazo de reglas solapadas (RN-AG-05)

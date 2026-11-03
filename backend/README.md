@@ -7,8 +7,8 @@ corren desde la raíz del repo salvo que se indique otra cosa.
 
 ```bash
 # DATABASE_URL acepta postgresql:// o postgresql+asyncpg:// (se fuerza asyncpg)
-alembic upgrade head      # c01_base -> c02_core_models -> c03_auth_rbac
-alembic downgrade c02_core_models
+alembic upgrade head      # c01_base -> c02_core_models -> c03_auth_rbac -> c04_agenda_config
+alembic downgrade c03_auth_rbac
 ```
 
 - `pg_trgm` se crea con `CREATE EXTENSION IF NOT EXISTS`. Es una extensión
@@ -37,6 +37,68 @@ psql "$DATABASE_URL" -c "COPY auth_event TO STDOUT CSV HEADER" > auth_event_$(da
 
 Los eventos son auditoría, no una fuente de verdad recuperable: si el CSV no se
 guardó, esos registros no se pueden reconstruir.
+
+### Revisión `c04_agenda_config` (C-04)
+
+- `btree_gist` (extensión *trusted* PG13+) + constraint
+  `ex_schedule_rule_no_overlap`: `EXCLUDE USING gist` sobre `(clinic_id,
+  professional_id, chair_id, weekday)` con franja horaria (`tsrange` sobre una
+  fecha fija, `[)`) y vigencia (`daterange(valid_from, valid_to, '[]')`)
+  intersectadas, solo entre reglas `active`.
+- **Excepción acotada a la regla 11**: PostgreSQL no admite `NOT VALID` ni
+  `CONCURRENTLY` para un `EXCLUDE`; el `ADD CONSTRAINT` toma `ACCESS EXCLUSIVE`
+  sobre `schedule_rule` (tabla de configuración, decenas de filas por clínica).
+  Si ya hubiera reglas solapadas la migración **falla** (fail-fast): resolverlas
+  antes de migrar. En producción, ventana de baja actividad.
+- `clinic`: `max_overbookings_per_day` (2) y `waitlist_offer_ttl_hours` (4) como
+  `ADD COLUMN … DEFAULT` metadata-only + `CHECK … NOT VALID` → `VALIDATE`.
+- Tablas nuevas `block` (enum `block_reason`) y `agenda_config_event`
+  (append-only por trigger `trg_agenda_config_event_no_mutate`).
+
+⚠️ **El downgrade pierde bloqueos y auditoría de configuración**: `alembic
+downgrade c03_auth_rbac` hace `DROP TABLE block` y `DROP TABLE
+agenda_config_event`. Exportarlos antes con `COPY … TO STDOUT CSV HEADER` (igual
+que `auth_event` en C-03).
+
+## Configuración de agenda (C-04)
+
+Todos los endpoints exigen access token; el tenant sale siempre del principal
+(un `clinic_id` en el body es `422`). Listados con paginación por cursor
+(`cursor`, `limit` ≤ 200, respuesta `{items, next_cursor}`).
+
+| Recurso | admin | recepción | odontólogo |
+|---|---|---|---|
+| `GET/POST/PATCH /api/professionals[/{id}]` | CRUD | R | R (solo el propio) |
+| `GET/POST/PATCH /api/chairs[/{id}]` | CRUD | R | R |
+| `GET/POST/PATCH /api/schedules[/{id}]` | CRUD | R | R (propias) |
+| `GET/POST /api/blocks[/{id}]` | CR | CR | CR (solo con su `professional_id`) |
+| `PATCH/DELETE /api/blocks/{id}` | UD | — | — |
+| `POST /api/blocks/closure` | C | — | — |
+| `GET/PATCH /api/clinic/policies` | RU | R | — |
+
+- **Bajas lógicas**: profesionales, sillones y reglas se desactivan con
+  `PATCH active=false`; los bloqueos se retiran con `DELETE` (marca
+  `removed_at`). Nunca hay borrado físico.
+- **Bloqueos (RN-BL-03)**: terminado = inmutable; en curso = solo se mueve
+  `ends_at` (a un instante no pasado); futuro = editable o retirable.
+- **Feriado / cierre (RN-BL-04)**: `POST /api/blocks/closure` crea un bloqueo por
+  cada sillón **activo en ese momento**. Un sillón dado de alta después no queda
+  bloqueado: cargar el cierre después de dar de alta los sillones.
+- **Auditoría**: cada mutación escribe `agenda_config_event` con actor y
+  `{campo: [anterior, nuevo]}` en la misma transacción.
+- **Pendiente de otros changes**: RN-BL-02 (bloqueo que pisa turnos) y el
+  rechazo de reservas sobre recursos inactivos llegan con `appointment` (C-05,
+  C-07); el snapshot de pasos de recordatorio, con C-09.
+
+| HTTP | `detail` | Cuándo |
+|---|---|---|
+| `404` | `not_found` | recurso de otra clínica o fuera del alcance del odontólogo |
+| `403` | `forbidden_scope` | odontólogo bloqueando una agenda que no es la suya |
+| `409` | `schedule_overlap` | regla solapada; incluye `conflicts: [ids]` |
+| `409` | `block_immutable` | edición/retiro de un bloqueo iniciado o terminado |
+| `422` | `invalid_resource` / `resource_inactive` | profesional o sillón ajeno, inexistente o inactivo |
+| `422` | `block_in_past` / `invalid_block_range` | bloqueo que termina en el pasado o rango invertido |
+| `422` | `invalid_schedule_rule` / `no_active_chairs` / `invalid_range` | regla inválida, cierre sin sillones, rango de listado invertido |
 
 ## Seed del tenant inicial
 

@@ -1,7 +1,8 @@
 """Servicio del dominio clinic: consultas de recursos siempre acotadas a la clínica.
 
 Reglas: `clinic_id` obligatorio en todo filtro (regla 4), columnas explícitas
-(sin SELECT *, regla 8) y sin borrado físico (regla 7).
+(sin SELECT *, regla 8) y sin borrado físico (regla 7). Las políticas (C-04)
+se editan solo sobre la clínica del principal y cada cambio se audita.
 """
 
 import uuid
@@ -13,15 +14,67 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import DomainError
 from app.common.phone import InvalidPhoneError, normalize_phone_e164
-from app.models import Chair, Patient, Professional, ScheduleRule
+from app.common.principal import Principal
+from app.models import (
+    Chair,
+    Clinic,
+    ConfigAction,
+    ConfigEntity,
+    Patient,
+    Professional,
+    ScheduleRule,
+)
+from app.modules.agenda.audit import apply_changes, record_config_event
+from app.modules.clinic.schemas import ClinicPolicies, ClinicPoliciesUpdate
 
 
-class ClinicService:
-    """Stub de servicio (los routers delegan aquí, nunca lógica inline)."""
+class PoliciesService:
+    """Lectura y edición de las políticas de la clínica del principal (US-004).
 
-    async def ping(self) -> str:
-        """Verifica cableado router→servicio."""
-        return "ok"
+    Contrato para C-09 (US-004 CA-2): el `reminder_job` copia el paso al
+    programarse; cambiar `reminder_steps` acá nunca toca jobs ya programados.
+    """
+
+    def __init__(self, session: AsyncSession, principal: Principal) -> None:
+        self.session = session
+        self.principal = principal
+
+    async def _clinic(self) -> Clinic:
+        clinic = (
+            await self.session.execute(select(Clinic).where(Clinic.id == self.principal.clinic_id))
+        ).scalar_one()
+        return clinic
+
+    @staticmethod
+    def _read(clinic: Clinic) -> ClinicPolicies:
+        return ClinicPolicies.model_validate(
+            {
+                "cancellation_window_hours": clinic.cancellation_window_hours,
+                "reminder_steps": clinic.reminder_steps,
+                "max_overbookings_per_day": clinic.max_overbookings_per_day,
+                "waitlist_offer_ttl_hours": clinic.waitlist_offer_ttl_hours,
+            }
+        )
+
+    async def get(self) -> ClinicPolicies:
+        return self._read(await self._clinic())
+
+    async def update(self, payload: ClinicPoliciesUpdate) -> ClinicPolicies:
+        clinic = await self._clinic()
+        cambios = apply_changes(clinic, payload.model_dump(include=payload.model_fields_set))
+        if cambios:
+            await self.session.flush()
+            record_config_event(
+                self.session,
+                self.principal,
+                entity=ConfigEntity.CLINIC_POLICY,
+                entity_id=clinic.id,
+                action=ConfigAction.UPDATED,
+                changes=cambios,
+            )
+            await self.session.commit()
+            await self.session.refresh(clinic)
+        return self._read(clinic)
 
 
 async def list_active_professionals(

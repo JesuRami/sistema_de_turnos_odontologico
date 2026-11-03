@@ -81,7 +81,8 @@ async def _escenario(
     prof_a2 = await make_professional(db_session, clinica_a, display_name="Dr. A2")
     prof_b = await make_professional(db_session, clinica_b, display_name="Dr. B")
     filas_a1 = [
-        await make_schedule_rule(db_session, clinica_a, prof_a1, sillon_a) for _ in range(2)
+        await make_schedule_rule(db_session, clinica_a, prof_a1, sillon_a, weekday=dia)
+        for dia in range(2)  # días distintos: el EXCLUDE de C-04 prohíbe reglas solapadas
     ]
     filas_a2 = [await make_schedule_rule(db_session, clinica_a, prof_a2, sillon_a)]
     filas_b = [await make_schedule_rule(db_session, clinica_b, prof_b, sillon_b)]

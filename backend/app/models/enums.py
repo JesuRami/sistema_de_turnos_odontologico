@@ -23,3 +23,33 @@ class AuthEventType(enum.StrEnum):
     USER_UPDATED = "user_updated"
     USER_DEACTIVATED = "user_deactivated"
     ROLE_CHANGED = "role_changed"
+
+
+class BlockReason(enum.StrEnum):
+    """Catálogo cerrado de motivos de bloqueo de agenda (KB 04 §block, C-04)."""
+
+    VACACIONES = "vacaciones"
+    FERIADO = "feriado"
+    MANTENIMIENTO = "mantenimiento"
+    REUNION = "reunion"
+    OTRO = "otro"
+
+
+class ConfigEntity(enum.StrEnum):
+    """Entidad de configuración auditada en `agenda_config_event` (C-04)."""
+
+    PROFESSIONAL = "professional"
+    CHAIR = "chair"
+    SCHEDULE_RULE = "schedule_rule"
+    BLOCK = "block"
+    CLINIC_POLICY = "clinic_policy"
+
+
+class ConfigAction(enum.StrEnum):
+    """Acción auditada sobre la configuración de agenda (C-04)."""
+
+    CREATED = "created"
+    UPDATED = "updated"
+    DEACTIVATED = "deactivated"
+    REACTIVATED = "reactivated"
+    REMOVED = "removed"

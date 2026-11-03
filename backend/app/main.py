@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.common.exceptions import register_exception_handlers
-from app.core.database import create_engine, create_sessionmaker
+from app.core.database import async_database_url, create_engine, create_sessionmaker
 from app.core.redis import create_redis_client
 from app.core.settings import Settings, get_settings
 from app.modules.agenda.router import router as agenda_router
@@ -118,7 +118,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         import asyncpg  # diferido para tests sin DB
 
         try:
-            conn = await asyncpg.connect(str(settings.DATABASE_URL), timeout=2)
+            # asyncpg usa el DSN plano: se quita el sufijo de driver de SQLAlchemy.
+            dsn = async_database_url(str(settings.DATABASE_URL)).replace("+asyncpg", "", 1)
+            conn = await asyncpg.connect(dsn, timeout=2)
             await conn.close()
         except Exception:
             unavailable.append("postgres")

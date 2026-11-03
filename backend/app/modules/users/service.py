@@ -7,10 +7,7 @@ auditoría se confirman en la misma transacción (RN-GL-01).
 
 from __future__ import annotations
 
-import base64
-import binascii
 import uuid
-from datetime import datetime
 from typing import Any
 
 from redis.asyncio import Redis
@@ -20,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import DomainError
+from app.common.pagination import decode_cursor, encode_cursor
 from app.common.principal import Principal
 from app.core.jwt import utcnow
 from app.core.security import hash_password
@@ -79,22 +77,6 @@ async def get_user_by_email(session: AsyncSession, clinic_id: uuid.UUID, email: 
     """Usuario de la clínica con ese email (insensible a mayúsculas) o `None`."""
     stmt = select(User).where(User.clinic_id == clinic_id, User.email == email.strip().lower())
     return (await session.execute(stmt)).scalar_one_or_none()
-
-
-def encode_cursor(created_at: datetime, user_id: uuid.UUID) -> str:
-    """Cursor opaco `created_at|id` en base64url (orden estable sin OFFSET)."""
-    crudo = f"{created_at.isoformat()}|{user_id}".encode()
-    return base64.urlsafe_b64encode(crudo).decode()
-
-
-def decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
-    """Decodifica el cursor; formato inválido → `422 invalid_cursor`."""
-    try:
-        crudo = base64.urlsafe_b64decode(cursor.encode()).decode()
-        ts, _, user_id = crudo.partition("|")
-        return datetime.fromisoformat(ts), uuid.UUID(user_id)
-    except (ValueError, binascii.Error, UnicodeDecodeError):
-        raise DomainError(422, "invalid_cursor") from None
 
 
 def _read(user: User) -> UserRead:

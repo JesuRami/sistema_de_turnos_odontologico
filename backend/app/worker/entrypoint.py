@@ -30,7 +30,8 @@ async def check_postgres(database_url: str) -> bool:
     """Verifica conectividad Postgres (connect + close)."""
     import asyncpg
 
-    conn = await asyncpg.connect(database_url, timeout=5)
+    # asyncpg no entiende el sufijo de driver de SQLAlchemy (`postgresql+asyncpg://`).
+    conn = await asyncpg.connect(database_url.replace("+asyncpg", "", 1), timeout=5)
     try:
         return True
     finally:

@@ -2,6 +2,13 @@
 services:
   api:
     restart: always
+    # nginx (frontend) es la única puerta: la API no se publica en el host, así que
+    # solo contenedores propios le hablan y puede confiar en su `X-Forwarded-For`
+    # (uvicorn 0.30 no admite CIDR; sin esto todos compartirían la IP del proxy
+    # en los rate-limits de login y reserva).
+    ports: !reset []
+    environment:
+      FORWARDED_ALLOW_IPS: "*"
     deploy:
       resources:
         limits:

@@ -1,4 +1,4 @@
-"""Clínica (tenant) con su configuración operativa (C-02)."""
+"""Clínica (tenant) con su configuración operativa (C-02; políticas de C-04)."""
 
 from typing import Any
 
@@ -10,6 +10,8 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
 DEFAULT_CANCELLATION_WINDOW_HOURS = 24
+DEFAULT_MAX_OVERBOOKINGS_PER_DAY = 2
+DEFAULT_WAITLIST_OFFER_TTL_HOURS = 4
 DEFAULT_REMINDER_STEPS_SQL = (
     '\'[{"offset_h": 72, "channel": "whatsapp"}, {"offset_h": 24, "channel": "whatsapp"}, '
     '{"offset_h": 3, "channel": "whatsapp"}]\'::jsonb'
@@ -24,6 +26,8 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("slug"),
         CheckConstraint("cancellation_window_hours >= 0", name="cancellation_window_nonneg"),
         CheckConstraint("jsonb_typeof(reminder_steps) = 'array'", name="reminder_steps_array"),
+        CheckConstraint("max_overbookings_per_day >= 0", name="max_overbookings_nonneg"),
+        CheckConstraint("waitlist_offer_ttl_hours > 0", name="waitlist_offer_ttl_positive"),
     )
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -39,4 +43,12 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     reminder_steps: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, server_default=text(DEFAULT_REMINDER_STEPS_SQL)
+    )
+    # Tope de sobreturnos por profesional y día (RN-SB-03, C-04).
+    max_overbookings_per_day: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text(str(DEFAULT_MAX_OVERBOOKINGS_PER_DAY))
+    )
+    # Vigencia de una oferta de lista de espera (RN-LE-03, C-04).
+    waitlist_offer_ttl_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text(str(DEFAULT_WAITLIST_OFFER_TTL_HOURS))
     )

@@ -8,6 +8,7 @@ recibido en el cuerpo del 422, y eso sería PII (regla 13).
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
@@ -45,3 +46,30 @@ class PatientSearchResult(BaseModel):
     """Resultado por relevancia (máximo 20): no es un listado paginable."""
 
     items: list[PatientRead]
+
+
+class PatientDetail(PatientRead):
+    """Ficha completa para la fusión asistida (C-06): incluye baja lógica y turnos."""
+
+    archived_at: datetime | None
+    merged_into_patient_id: uuid.UUID | None
+    appointments_count: int
+
+
+class PatientMergeRequest(BaseModel):
+    """El paciente de la ruta (duplicado) se fusiona en `into_patient_id` (conservado)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    into_patient_id: uuid.UUID
+
+
+class PatientMergeResult(BaseModel):
+    """Resultado de la fusión: solo ids y nombres de campos, nunca datos personales."""
+
+    merge_id: uuid.UUID
+    source_patient_id: uuid.UUID
+    target_patient_id: uuid.UUID
+    moved_appointments: int
+    appointment_ids: list[uuid.UUID]
+    filled_fields: list[str]

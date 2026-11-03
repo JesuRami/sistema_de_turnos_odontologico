@@ -16,6 +16,7 @@ TABLAS = {
     "agenda_config_event",
     "appointment",
     "appointment_event",
+    "patient_merge",
 }
 INDICES = {
     "uq_clinic_slug",
@@ -39,6 +40,7 @@ INDICES = {
     "ix_appointment_patient_id_starts_at",
     "ix_appointment_event_appointment_id_created_at",
     "ix_appointment_event_clinic_id_created_at",
+    "ix_patient_merge_clinic_id_created_at",
 }
 ENUMS = {
     "user_role",
@@ -204,6 +206,62 @@ def test_upgrade_crea_los_objetos_de_turnos_de_c05(temp_database: str) -> None:
         temp_database,
     )
     assert no_validados == []
+
+
+def test_upgrade_crea_los_objetos_de_fusion_de_c06(temp_database: str) -> None:
+    """WHEN upgrade head THEN existen el puntero validado, la FK compuesta y el trigger."""
+    command.upgrade(alembic_config(), "head")
+
+    columnas = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'patient'",
+            temp_database,
+        )
+    }
+    assert "merged_into_patient_id" in columnas
+    constraints = {
+        str(r[0]): bool(r[1])
+        for r in fetch_rows(
+            "SELECT conname, convalidated FROM pg_constraint "
+            "WHERE conrelid = 'patient'::regclass",
+            temp_database,
+        )
+    }
+    for nombre in (
+        "fk_patient_merged_into_patient_id_clinic_id_patient",
+        "ck_patient_not_merged_into_self",
+        "ck_patient_merged_is_archived",
+    ):
+        assert constraints[nombre] is True, nombre
+    triggers = fetch_rows(
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'patient_merge'::regclass "
+        "AND NOT tgisinternal",
+        temp_database,
+    )
+    assert {str(r[0]) for r in triggers} == {"trg_patient_merge_no_mutate"}
+
+
+def test_downgrade_a_c05_elimina_los_objetos_de_c06(temp_database: str) -> None:
+    cfg = alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "c05_appointments_core")
+
+    assert "patient_merge" not in _tablas(temp_database)
+    columnas = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'patient'",
+            temp_database,
+        )
+    }
+    assert "merged_into_patient_id" not in columnas
+    assert (
+        fetch_rows(
+            "SELECT proname FROM pg_proc WHERE proname = 'patient_merge_immutable'", temp_database
+        )
+        == []
+    )
 
 
 def test_downgrade_a_c04_elimina_los_objetos_de_c05(temp_database: str) -> None:

@@ -25,3 +25,8 @@ pgdata/
 Thumbs.db
 .vscode/
 .idea/
+
+# E2E (C-06): estado local de la corrida, no se versiona.
+frontend/e2e/.state.json
+frontend/test-results/
+frontend/playwright-report/

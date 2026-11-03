@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -51,3 +52,13 @@ class ClinicPoliciesUpdate(BaseModel):
             if len(set(offsets)) != len(offsets):
                 raise ValueError("reminder_steps no puede repetir offset_h")
         return self
+
+
+class ClinicProfile(BaseModel):
+    """Perfil de la clínica para todo el personal (C-06): nombre y zona horaria."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    timezone: str

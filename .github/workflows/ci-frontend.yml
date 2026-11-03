@@ -44,3 +44,6 @@ jobs:
         working-directory: frontend
         run: npx playwright test --list
         continue-on-error: true
+      - name: Tests unitarios y de componentes (Vitest)
+        working-directory: frontend
+        run: npm run test

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from collections.abc import Sequence
 
 from sqlalchemy import func, select
@@ -20,10 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.exceptions import DomainError
 from app.common.phone import InvalidPhoneError, normalize_phone_e164
 from app.common.principal import Principal
-from app.models import Patient
+from app.models import Appointment, Patient
 from app.modules.clinic.service import create_patient, find_patients_by_phone
 from app.modules.patients.schemas import (
     PatientCreate,
+    PatientDetail,
     PatientRead,
     PatientSearchResult,
 )
@@ -63,6 +65,29 @@ class PatientsService:
             encontrados = await self._by_name(termino)
         return PatientSearchResult(
             items=[PatientRead.model_validate(p) for p in encontrados[:SEARCH_LIMIT]]
+        )
+
+    async def get(self, patient_id: uuid.UUID) -> PatientDetail:
+        """Ficha de un paciente de la clínica (también archivado); ajeno → `404`."""
+        patient = await self.session.scalar(
+            select(Patient).where(
+                Patient.id == patient_id, Patient.clinic_id == self.principal.clinic_id
+            )
+        )
+        if patient is None:
+            raise DomainError(404, "not_found")
+        total = await self.session.scalar(
+            select(func.count()).where(
+                Appointment.clinic_id == self.principal.clinic_id,
+                Appointment.patient_id == patient_id,
+            )
+        )
+        base = PatientRead.model_validate(patient).model_dump()
+        return PatientDetail(
+            **base,
+            archived_at=patient.archived_at,
+            merged_into_patient_id=patient.merged_into_patient_id,
+            appointments_count=int(total or 0),
         )
 
     async def _by_name(self, termino: str) -> Sequence[Patient]:

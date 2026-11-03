@@ -216,7 +216,8 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-06] `agenda-spa-recepcion`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-11-03)
+- **Notas de cierre**: SPA del personal con sesión en memoria y refresh single-flight entre pestañas (`navigator.locks` + `BroadcastChannel`), agenda día/semana en la zona de la clínica con grilla propia, operación de turnos (alternativos ante `409`, sobreturno con motivo, reprogramar, cancelar, asistencia), pantallas de profesionales, sillones, plantilla, bloqueos (resolución de turnos afectados en la misma operación, también en cierres) y políticas. Backend mínimo: `GET /api/clinic` (zona horaria para todos los roles), `GET /api/patients/{id}` y `POST /api/patients/{id}/merge` con migración `c06_patient_merge` (puntero + `patient_merge` append-only) y `FOR SHARE` en el alta de turnos. Governance subida a ALTO por la fusión. Tests: Vitest + Testing Library + MSW y Playwright contra el stack real (semana de 500 turnos visible en 319 ms). **Diferido**: ABM de usuarios del personal (sin change asignado: hoy por API/seed); drag & drop en la agenda; reasignar o cancelar jobs de recordatorio y lista de espera del duplicado en la transacción de la fusión → C-09/C-12; Playwright en CI → C-14.
 - **Scope**: SPA de recepción y administración — agenda diaria + ABM de recursos (US-010, US-001 a US-004 frontend, Flujo 4)
   - Vista día (default) y semana con filtros profesional/sillón/estado; color por profesional, distintivo por estado/sobreturno/bloqueo (US-010 CA-1/2); objetivo < 2 s con 500 turnos/semana (US-010 CA-3)
   - Crear turno con búsqueda trigram + alta rápida (nombre + contacto); colisión → alternativos o sobreturno explícito (Flujo 4 paso 2); reprogramar/cancelar con motivo; presente/ausente del día; pendientes sin confirmar destacados (T-24 h)
@@ -372,6 +373,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - Consentimiento/retención/portabilidad mínimos desde v1 para no re-arquitecturar en fase clínica (pregunta Alta Ley 27.706/26.529 en `10` — validar con asesor legal + PO)
   - Checklist de piloto: 6 plantillas Meta + 2 variantes listas (email cubre si alguna se rechaza), métricas de éxito cableadas (0 solapamientos, ausentismo −20 %, confirmación ≥ 60 % pre T-24 h, huecos recuperados ≥ 10 %, online ≥ 30 %)
   - Tests E2E Playwright del circuito crítico: reserva → recordatorio → confirmación → presente
+  - Playwright del circuito de recepción en CI (diferido de C-06; hoy corre en el gate local con el stack levantado)
   - Rol DB `app_writer` para la app (diferido de C-05): `MIGRATION_DATABASE_URL` separado del usuario de la app; `GRANT SELECT, INSERT` sin `UPDATE/DELETE` sobre `appointment_event`, `agenda_config_event` y `auth_event`
 - **Dependencias**: C-06, C-11, C-12, C-13
 - **Governance**: ALTO

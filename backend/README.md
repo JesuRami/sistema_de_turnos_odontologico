@@ -194,6 +194,44 @@ motivo (regla 7).
 c04_agenda_config` hace `DROP TABLE appointment_event` y `DROP TABLE
 appointment`. Exportarlos antes con `COPY … TO STDOUT CSV HEADER`.
 
+## Perfil de clínica y fusión de pacientes (C-06)
+
+| Endpoint | admin | recepción | odontólogo |
+|---|---|---|---|
+| `GET /api/clinic` → `{id, name, timezone}` | R | R | R |
+| `GET /api/patients/{id}` (incluye archivados: `archived_at`, `merged_into_patient_id`, `appointments_count`) | R | R | — |
+| `POST /api/patients/{id}/merge` `{into_patient_id}` | C | C | — |
+
+- **Zona horaria**: la SPA dibuja la agenda con `timezone` de `GET /api/clinic`,
+  nunca con la del navegador.
+- **Fusión** (Flujo 4, caso de error): el paciente de la ruta es el duplicado;
+  `into_patient_id`, el que se conserva. En una transacción y con `FOR UPDATE`
+  sobre ambos: completa los contactos vacíos del conservado (`phone_e164`,
+  `email`, `dni`; `whatsapp_opt_in` no se hereda), reasigna los turnos del
+  duplicado de **todos** los estados con un evento `updated` por turno
+  (`{patient_id: [anterior, nuevo], reason: "patient_merge", merge_id}`),
+  archiva el duplicado con `merged_into_patient_id` y escribe `patient_merge`
+  (append-only, sin datos personales). Respuesta: `{merge_id,
+  source_patient_id, target_patient_id, moved_appointments, appointment_ids,
+  filled_fields}`. Mismo paciente, archivado, ya fusionado, de otra clínica o
+  inexistente → `422 invalid_merge` (no revela cuál). Irreversible.
+- **Carrera con el alta de turnos**: `AppointmentsService` lee al paciente con
+  `FOR SHARE`; un alta para el duplicado espera a la fusión y responde `422
+  invalid_patient`. **Contrato C-09/C-12**: jobs de recordatorio y lista de
+  espera del duplicado se reasignan o cancelan en la misma transacción.
+
+### Revisión `c06_patient_merge` (C-06)
+
+- `patient.merged_into_patient_id` (`ADD COLUMN` nullable: metadata-only), FK
+  compuesta `(merged_into_patient_id, clinic_id) → patient(id, clinic_id)` y
+  CHECKs (`<> id`, fusionado ⇒ archivado) con `NOT VALID` → `VALIDATE` (regla 11).
+- Tabla nueva `patient_merge` con trigger `trg_patient_merge_no_mutate`.
+
+⚠️ **El downgrade pierde la auditoría de fusiones**: `alembic downgrade
+c05_appointments_core` hace `DROP TABLE patient_merge` y elimina el puntero; los
+fusionados quedan archivados pero sin saber en quién se fusionaron. Exportar
+antes con `COPY … TO STDOUT CSV HEADER`.
+
 ## Seed del tenant inicial
 
 Crea una clínica, un admin con cambio de contraseña obligatorio, el sillón

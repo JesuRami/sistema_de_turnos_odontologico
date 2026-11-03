@@ -1,4 +1,4 @@
-"""Modelos ORM del dominio core (C-02 a C-05). Importar registra todo en `Base.metadata`."""
+"""Modelos ORM del dominio core (C-02 a C-06). Importar registra todo en `Base.metadata`."""
 
 from app.models.agenda_config_event import AgendaConfigEvent
 from app.models.appointment import Appointment
@@ -22,6 +22,7 @@ from app.models.enums import (
     UserRole,
 )
 from app.models.patient import Patient
+from app.models.patient_merge import PatientMerge
 from app.models.professional import Professional
 from app.models.schedule_rule import ScheduleRule
 from app.models.user import User
@@ -46,6 +47,7 @@ __all__ = [
     "ConfigAction",
     "ConfigEntity",
     "Patient",
+    "PatientMerge",
     "Professional",
     "ScheduleRule",
     "User",

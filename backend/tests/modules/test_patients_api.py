@@ -17,7 +17,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.agenda_helpers import make_staff
-from tests.factories import make_clinic, make_patient, unique_phone_e164
+from tests.factories import make_appointment, make_clinic, make_patient, unique_phone_e164
 
 pytestmark = pytest.mark.integration
 
@@ -341,3 +341,75 @@ async def test_errores_de_contacto_sin_datos_personales(
     for dato in (valor, "5550", "12ab", "gina.ficticia", "Gina Ficticia"):
         assert dato not in response.text
         assert dato not in caplog.text
+
+
+# --------------------------------------------------------- detalle (C-06)
+
+
+@pytest.mark.parametrize("rol", ["admin", "recepcion"])
+async def test_detalle_de_un_paciente_con_sus_turnos(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+    rol: str,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    paciente = await make_patient(
+        db_session, staff.clinic, full_name="Hugo Ficticio Detalle", email="hugo@example.com"
+    )
+    for hora in (13, 14):
+        await make_appointment(
+            db_session,
+            staff.clinic,
+            patient=paciente,
+            professional=staff.professional,
+            chair=staff.chair,
+            starts_at=datetime(2030, 1, 7, hora, tzinfo=UTC),
+        )
+
+    response = await app_client.get(f"/api/patients/{paciente.id}", headers=staff.headers[rol])
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "id": str(paciente.id),
+        "full_name": "Hugo Ficticio Detalle",
+        "phone_e164": paciente.phone_e164,
+        "email": "hugo@example.com",
+        "dni": None,
+        "whatsapp_opt_in": False,
+        "archived_at": None,
+        "merged_into_patient_id": None,
+        "appointments_count": 2,
+    }
+
+
+async def test_detalle_de_otra_clinica_o_inexistente_es_404(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    ajeno = await make_patient(db_session, await make_clinic(db_session))
+
+    for patient_id in (ajeno.id, uuid.uuid4()):
+        response = await app_client.get(
+            f"/api/patients/{patient_id}", headers=staff.headers["admin"]
+        )
+        assert response.status_code == 404
+        assert response.json() == {"detail": "not_found"}
+
+
+async def test_odontologo_no_ve_el_detalle(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    paciente = await make_patient(db_session, staff.clinic)
+    response = await app_client.get(
+        f"/api/patients/{paciente.id}", headers=staff.headers["odontologo"]
+    )
+    assert response.status_code == 403

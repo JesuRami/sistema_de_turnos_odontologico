@@ -545,12 +545,16 @@ class AppointmentsService:
     # ------------------------------------------------------- validación (D5)
 
     async def _assert_patient(self, patient_id: uuid.UUID) -> None:
+        # `FOR SHARE` (C-06): espera a una fusión en curso (`FOR UPDATE`) y luego relee;
+        # sin el lock, MVCC dejaría pasar un turno colgado del duplicado ya fusionado.
         existe = await self.session.scalar(
-            select(Patient.id).where(
+            select(Patient.id)
+            .where(
                 Patient.id == patient_id,
                 Patient.clinic_id == self.actor.clinic_id,
                 Patient.archived_at.is_(None),
             )
+            .with_for_update(read=True)
         )
         if existe is None:
             raise DomainError(422, "invalid_patient")

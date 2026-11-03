@@ -25,7 +25,17 @@ from app.models import (
     ScheduleRule,
 )
 from app.modules.agenda.audit import apply_changes, record_config_event
-from app.modules.clinic.schemas import ClinicPolicies, ClinicPoliciesUpdate
+from app.modules.clinic.schemas import ClinicPolicies, ClinicPoliciesUpdate, ClinicProfile
+
+
+async def get_clinic_profile(session: AsyncSession, principal: Principal) -> ClinicProfile:
+    """Perfil de la clínica del principal; el tenant nunca sale de la request (regla 4)."""
+    fila = (
+        await session.execute(
+            select(Clinic.id, Clinic.name, Clinic.timezone).where(Clinic.id == principal.clinic_id)
+        )
+    ).one()
+    return ClinicProfile(id=fila.id, name=fila.name, timezone=fila.timezone)
 
 
 class PoliciesService:

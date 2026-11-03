@@ -42,9 +42,13 @@ async def test_ilike_por_nombre_con_clinic_id_usa_trigram_si_el_btree_no_compite
 ) -> None:
     """`clinic_id` es predicado adicional (decisión 5.d): con una sola clínica el btree
     por `clinic_id` no es selectivo, así que se lo retira (DDL transaccional, se revierte)
-    para comprobar que el GIN sirve la consulta filtrada por clínica."""
+    para comprobar que el GIN sirve la consulta filtrada por clínica. Lo mismo con el
+    UNIQUE `(id, clinic_id)` de C-05 (solo existe para la FK compuesta de `appointment`)."""
     clinic_id = await _clinica_con_muchos_pacientes(db_session)
     await db_session.execute(text("DROP INDEX ix_patient_clinic_id_phone_e164"))
+    await db_session.execute(
+        text("ALTER TABLE patient DROP CONSTRAINT uq_patient_id_clinic_id CASCADE")
+    )
 
     plan = await _explain(
         db_session,

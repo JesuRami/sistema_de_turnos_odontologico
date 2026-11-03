@@ -14,6 +14,7 @@ from typing import Annotated, ClassVar
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models import BlockReason
+from app.modules.appointments.schemas import CancelInstruction
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 Color = Annotated[str, StringConstraints(pattern=r"^#[0-9A-Fa-f]{6}$")]
@@ -179,6 +180,8 @@ class BlockCreate(_Input):
     ends_at: AwareDatetime
     reason: BlockReason
     notes: Notes | None = None
+    # RN-BL-02 (C-05): turnos afectados que se cancelan en la misma transacción.
+    cancel_appointments: list[CancelInstruction] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _objetivo_y_rango(self) -> BlockCreate:
@@ -198,6 +201,7 @@ class BlockUpdate(_Patch):
     ends_at: AwareDatetime | None = None
     reason: BlockReason | None = None
     notes: Notes | None = None
+    cancel_appointments: list[CancelInstruction] | None = None
 
 
 class ClosureCreate(_Input):
@@ -207,6 +211,7 @@ class ClosureCreate(_Input):
     ends_at: AwareDatetime
     reason: BlockReason = BlockReason.FERIADO
     notes: Notes | None = None
+    cancel_appointments: list[CancelInstruction] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _rango(self) -> ClosureCreate:

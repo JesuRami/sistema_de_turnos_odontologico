@@ -9,6 +9,9 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from app.models import (
+    Appointment,
+    AppointmentOrigin,
+    AppointmentStatus,
     Block,
     BlockReason,
     Chair,
@@ -160,3 +163,40 @@ async def make_user(session: AsyncSession, clinic: Clinic, **overrides: Any) -> 
     session.add(user)
     await session.flush()
     return user
+
+
+async def make_appointment(
+    session: AsyncSession,
+    clinic: Clinic,
+    *,
+    patient: Patient,
+    professional: Professional,
+    chair: Chair,
+    starts_at: datetime,
+    minutes: int = 30,
+    buffer_min: int = 0,
+    **overrides: Any,
+) -> Appointment:
+    """Turno sintético persistido directo (sin servicio): para invariantes de base y fixtures.
+
+    Sin `created_by_user_id` explícito, un turno de recepción crea un admin sintético.
+    """
+    ends_at = starts_at + timedelta(minutes=minutes)
+    values: dict[str, Any] = {
+        "clinic_id": clinic.id,
+        "patient_id": patient.id,
+        "professional_id": professional.id,
+        "chair_id": chair.id,
+        "starts_at": starts_at,
+        "ends_at": ends_at,
+        "occupied_until": ends_at + timedelta(minutes=buffer_min),
+        "status": AppointmentStatus.CONFIRMED,
+        "origin": AppointmentOrigin.RECEPTION,
+    }
+    values.update(overrides)
+    if values["origin"] == AppointmentOrigin.RECEPTION and "created_by_user_id" not in values:
+        values["created_by_user_id"] = (await make_user(session, clinic)).id
+    appointment = Appointment(**values)
+    session.add(appointment)
+    await session.flush()
+    return appointment

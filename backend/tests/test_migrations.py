@@ -14,6 +14,8 @@ TABLAS = {
     "auth_event",
     "block",
     "agenda_config_event",
+    "appointment",
+    "appointment_event",
 }
 INDICES = {
     "uq_clinic_slug",
@@ -28,8 +30,28 @@ INDICES = {
     "ex_schedule_rule_no_overlap",
     "ix_block_clinic_id_starts_at",
     "ix_agenda_config_event_clinic_id_created_at",
+    "uq_patient_id_clinic_id",
+    "uq_appointment_clinic_id_id",
+    "ex_appointment_professional_no_overlap",
+    "ex_appointment_chair_no_overlap",
+    "ix_appointment_clinic_id_starts_at",
+    "ix_appointment_professional_id_starts_at",
+    "ix_appointment_patient_id_starts_at",
+    "ix_appointment_event_appointment_id_created_at",
+    "ix_appointment_event_clinic_id_created_at",
 }
-ENUMS = {"user_role", "auth_event_type", "block_reason", "config_entity", "config_action"}
+ENUMS = {
+    "user_role",
+    "auth_event_type",
+    "block_reason",
+    "config_entity",
+    "config_action",
+    "appointment_status",
+    "appointment_origin",
+    "cancellation_reason",
+    "appointment_event_type",
+    "actor_type",
+}
 
 
 def _tablas(url: str) -> set[str]:
@@ -147,6 +169,63 @@ def test_upgrade_crea_los_objetos_de_agenda_de_c04(temp_database: str) -> None:
         temp_database,
     )
     assert {str(r[0]) for r in triggers} == {"trg_agenda_config_event_no_mutate"}
+
+
+def test_upgrade_crea_los_objetos_de_turnos_de_c05(temp_database: str) -> None:
+    """WHEN upgrade head THEN existen los dos EXCLUDE con predicado de vigencia y el trigger."""
+    command.upgrade(alembic_config(), "head")
+
+    excludes = {
+        str(r[0]): str(r[1])
+        for r in fetch_rows(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conrelid = 'appointment'::regclass AND contype = 'x'",
+            temp_database,
+        )
+    }
+    assert set(excludes) == {
+        "ex_appointment_professional_no_overlap",
+        "ex_appointment_chair_no_overlap",
+    }
+    for definicion in excludes.values():
+        assert "EXCLUDE USING gist" in definicion
+        assert "tstzrange(starts_at, occupied_until, '[)'::text) WITH &&" in definicion
+        assert "NOT is_overbooking" in definicion
+        assert "'absent'" not in definicion
+    triggers = fetch_rows(
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'appointment_event'::regclass "
+        "AND NOT tgisinternal",
+        temp_database,
+    )
+    assert {str(r[0]) for r in triggers} == {"trg_appointment_event_no_mutate"}
+    no_validados = fetch_rows(
+        "SELECT conname FROM pg_constraint WHERE connamespace = 'public'::regnamespace "
+        "AND NOT convalidated",
+        temp_database,
+    )
+    assert no_validados == []
+
+
+def test_downgrade_a_c04_elimina_los_objetos_de_c05(temp_database: str) -> None:
+    """WHEN downgrade c04_agenda_config THEN no queda ningún objeto de c05."""
+    cfg = alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "c04_agenda_config")
+
+    assert {"appointment", "appointment_event"}.isdisjoint(_tablas(temp_database))
+    assert {
+        "appointment_status",
+        "appointment_origin",
+        "cancellation_reason",
+        "appointment_event_type",
+        "actor_type",
+    }.isdisjoint(_enums(temp_database))
+    assert "uq_patient_id_clinic_id" not in _indices(temp_database)
+    funciones = fetch_rows(
+        "SELECT proname FROM pg_proc WHERE proname = 'appointment_event_immutable'",
+        temp_database,
+    )
+    assert funciones == []
 
 
 def test_downgrade_a_c03_elimina_los_objetos_de_c04(temp_database: str) -> None:

@@ -195,7 +195,8 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-05] `appointments-core`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-11-03)
+- **Notas de cierre**: migración `c05_appointments_core` (no "004"). Rango ocupado explícito `occupied_until = ends_at + buffer` (snapshot) en vez de columna generada (`timestamptz + interval` no es inmutable). Los EXCLUDE usan la vigencia positiva `status IN ('pending','confirmed','present') AND NOT is_overbooking` (la KB decía `NOT IN ('cancelled','no_show')`: `absent` también libera, US-013 CA-2). Sobreturnos fuera del EXCLUDE, controlados bajo lock por recurso. Cancelación/asistencia por `POST /api/appointments/{id}/transitions` (no `PATCH status`). FK compuesta a `patient` exigió `uq_patient_id_clinic_id` (`CONCURRENTLY` + `USING INDEX`). RN-BL-02 aplicado a alta/edición de bloqueos y también al cierre de clínica. API mínima de pacientes (`GET/POST /api/patients`). **Diferido con contrato**: jobs de recordatorio (programar al crear/reprogramar, cancelar al cancelar, en la misma transacción del servicio de turnos) → C-09; evaluar lista de espera al cancelar → C-12; el booking público usa `AppointmentsService.book(origin=online)` y por lo tanto el mismo lock `FOR UPDATE` profesional→sillón, y `suggest_slots` para disponibilidad → C-07; rol DB `app_writer` (sin UPDATE/DELETE sobre eventos, separado del owner de migraciones) → C-14.
 - **Scope**: Núcleo de turnos con invariante dura en DB + auditoría inmutable (US-011, US-012, US-013, RN-AG, RN-SB, RN-ST) — el change más crítico del sistema
   - `appointment` (`tstzrange` + `EXCLUDE USING gist` por professional y por chair, `WHERE status NOT IN ('cancelled','no_show')`); `ends_at > starts_at`; buffer del profesional integra el rango excluido (RN-AG-04)
   - Máquina de estados RN-ST-01 (`pending → confirmed → present`; `→ cancelled`; `confirmed → absent/no_show` post-horario solo personal); recepción nace `confirmed`, online nace `pending` (RN-ST-02)
@@ -371,6 +372,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - Consentimiento/retención/portabilidad mínimos desde v1 para no re-arquitecturar en fase clínica (pregunta Alta Ley 27.706/26.529 en `10` — validar con asesor legal + PO)
   - Checklist de piloto: 6 plantillas Meta + 2 variantes listas (email cubre si alguna se rechaza), métricas de éxito cableadas (0 solapamientos, ausentismo −20 %, confirmación ≥ 60 % pre T-24 h, huecos recuperados ≥ 10 %, online ≥ 30 %)
   - Tests E2E Playwright del circuito crítico: reserva → recordatorio → confirmación → presente
+  - Rol DB `app_writer` para la app (diferido de C-05): `MIGRATION_DATABASE_URL` separado del usuario de la app; `GRANT SELECT, INSERT` sin `UPDATE/DELETE` sobre `appointment_event`, `agenda_config_event` y `auth_event`
 - **Dependencias**: C-06, C-11, C-12, C-13
 - **Governance**: ALTO
 - **Leer antes**:

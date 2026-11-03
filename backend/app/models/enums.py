@@ -53,3 +53,61 @@ class ConfigAction(enum.StrEnum):
     DEACTIVATED = "deactivated"
     REACTIVATED = "reactivated"
     REMOVED = "removed"
+
+
+class AppointmentStatus(enum.StrEnum):
+    """Estado del turno (RN-ST-01, C-05). Vigentes: pending, confirmed, present."""
+
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PRESENT = "present"
+    ABSENT = "absent"
+    NO_SHOW = "no_show"
+    CANCELLED = "cancelled"
+
+
+class AppointmentOrigin(enum.StrEnum):
+    """Canal por el que nació el turno (RN-ST-02, C-05)."""
+
+    RECEPTION = "reception"
+    ONLINE = "online"
+
+
+class CancellationReason(enum.StrEnum):
+    """Catálogo cerrado de motivos de cancelación (RN-CX-04, C-05)."""
+
+    PACIENTE = "paciente"
+    PROFESIONAL = "profesional"
+    CLINICA = "clinica"
+    BLOQUEO = "bloqueo"
+    OTRO = "otro"
+
+
+class AppointmentEventType(enum.StrEnum):
+    """Mutación auditada de un turno en `appointment_event` (C-05)."""
+
+    CREATED = "created"
+    OVERBOOKING_CREATED = "overbooking_created"
+    CONFIRMED = "confirmed"
+    RESCHEDULED = "rescheduled"
+    CANCELLED = "cancelled"
+    PRESENT = "present"
+    ABSENT = "absent"
+    NO_SHOW = "no_show"
+    UPDATED = "updated"
+
+
+class ActorType(enum.StrEnum):
+    """Quién originó una mutación de turno (C-05; `patient_token` llega con C-08)."""
+
+    USER = "user"
+    PATIENT_TOKEN = "patient_token"
+    SYSTEM = "system"
+
+
+# Vigente = ocupa agenda (RN-AG-01); `absent`, `no_show` y `cancelled` liberan el hueco.
+VIGENT_STATUSES = (
+    AppointmentStatus.PENDING,
+    AppointmentStatus.CONFIRMED,
+    AppointmentStatus.PRESENT,
+)

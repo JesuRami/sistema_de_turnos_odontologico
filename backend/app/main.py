@@ -20,10 +20,12 @@ from app.core.database import async_database_url, create_engine, create_sessionm
 from app.core.redis import create_redis_client
 from app.core.settings import Settings, get_settings
 from app.modules.agenda.router import router as agenda_router
+from app.modules.appointments.router import router as appointments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.booking_public.router import router as booking_public_router
 from app.modules.clinic.router import router as clinic_router
 from app.modules.notifications.router import router as notifications_router
+from app.modules.patients.router import router as patients_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.reports.router import router as reports_router
 from app.modules.users.router import router as users_router
@@ -140,6 +142,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         auth_router,
         clinic_router,
         agenda_router,
+        appointments_router,
+        patients_router,
         booking_public_router,
         waiting_list_router,
         reminders_router,

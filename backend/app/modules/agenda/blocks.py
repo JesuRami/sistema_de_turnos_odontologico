@@ -4,13 +4,18 @@
 - RN-BL-03: terminado = inmutable; en curso = solo se mueve el fin (a un instante
   no pasado); futuro = editable o retirable. El retiro es lógico (`removed_at`).
 - RN-BL-04: el cierre de clínica crea un bloqueo por sillón activo, atómico.
-- RN-BL-02 (bloqueo que pisa turnos vigentes) llega con `appointment` en C-05:
-  ese change agrega el chequeo a `create`/`update` de este servicio.
+- RN-BL-02 (C-05, D10): un bloqueo que pisa turnos `pending/confirmed` de su
+  profesional o sillón responde `409 block_conflicts`, salvo que la request los
+  cancele a todos (`cancel_appointments`). Bajo el lock por recurso de D4 (el
+  mismo que toma el alta de turnos), las cancelaciones pasan por la máquina de
+  estados y el bloqueo persiste en la misma transacción. El sistema nunca
+  cancela por su cuenta (RN-GL-02).
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -20,7 +25,16 @@ from app.common.exceptions import DomainError
 from app.common.pagination import paginate_entities
 from app.common.principal import Principal
 from app.common.scoping import scope_by_professional
-from app.models import Block, Chair, ConfigAction, ConfigEntity, Professional, UserRole
+from app.models import (
+    Appointment,
+    AppointmentStatus,
+    Block,
+    Chair,
+    ConfigAction,
+    ConfigEntity,
+    Professional,
+    UserRole,
+)
 from app.modules.agenda.audit import apply_changes, record_config_event, snapshot, to_json
 from app.modules.agenda.schemas import (
     BlockCreate,
@@ -31,6 +45,10 @@ from app.modules.agenda.schemas import (
     ClosureCreate,
 )
 from app.modules.agenda.service import assert_bookable_resource
+from app.modules.appointments.audit import Actor
+from app.modules.appointments.schemas import CancelInstruction
+from app.modules.appointments.service import find_affected_by_block, load_policy, lock_resources
+from app.modules.appointments.states import apply_transition
 
 _BLOCK_FIELDS = ("professional_id", "chair_id", "starts_at", "ends_at", "reason", "notes")
 
@@ -93,6 +111,7 @@ class BlocksService:
 
     async def create(self, payload: BlockCreate) -> BlockRead:
         self._assert_own_target(payload.professional_id)
+        self._assert_can_cancel(payload.cancel_appointments)
         if payload.ends_at <= _now():
             raise DomainError(422, "block_in_past")
         if payload.professional_id is not None:
@@ -101,15 +120,24 @@ class BlocksService:
             )
         if payload.chair_id is not None:
             await assert_bookable_resource(self.session, self.principal, Chair, payload.chair_id)
-        block = self._new_block(**payload.model_dump())
+        afectados = await self._resolve_conflicts(
+            [payload.professional_id] if payload.professional_id else [],
+            [payload.chair_id] if payload.chair_id else [],
+            payload.starts_at,
+            payload.ends_at,
+            payload.cancel_appointments,
+        )
+        block = self._new_block(**payload.model_dump(exclude={"cancel_appointments"}))
         await self.session.flush()
         self._audit_created(block)
+        await self._cancel(afectados, payload.cancel_appointments, {None: block.id})
         await self.session.commit()
         await self.session.refresh(block)
         return BlockRead.model_validate(block)
 
     async def create_closure(self, payload: ClosureCreate) -> BlockList:
         """Feriado/cierre: un bloqueo por sillón activo en una única transacción."""
+        self._assert_can_cancel(payload.cancel_appointments)
         if payload.ends_at <= _now():
             raise DomainError(422, "block_in_past")
         sillones = (
@@ -125,13 +153,20 @@ class BlocksService:
         )
         if not sillones:
             raise DomainError(422, "no_active_chairs")
+        afectados = await self._resolve_conflicts(
+            [], list(sillones), payload.starts_at, payload.ends_at, payload.cancel_appointments
+        )
+        valores = payload.model_dump(exclude={"cancel_appointments"})
         bloques = [
-            self._new_block(chair_id=chair_id, professional_id=None, **payload.model_dump())
+            self._new_block(chair_id=chair_id, professional_id=None, **valores)
             for chair_id in sillones
         ]
         await self.session.flush()
         for block in bloques:
             self._audit_created(block)
+        await self._cancel(
+            afectados, payload.cancel_appointments, {b.chair_id: b.id for b in bloques}
+        )
         await self.session.commit()
         for block in bloques:
             await self.session.refresh(block)
@@ -142,7 +177,9 @@ class BlocksService:
     async def update(self, block_id: uuid.UUID, payload: BlockUpdate) -> BlockRead:
         block = await self._block(block_id)
         ahora = _now()
-        valores = payload.model_dump(include=payload.model_fields_set)
+        cancelar = payload.cancel_appointments or []
+        self._assert_can_cancel(cancelar)
+        valores = payload.model_dump(include=payload.model_fields_set - {"cancel_appointments"})
         if block.ends_at <= ahora:
             raise DomainError(409, "block_immutable")
         if block.starts_at <= ahora and set(valores) - {"ends_at"}:
@@ -156,10 +193,18 @@ class BlocksService:
             raise DomainError(422, "block_in_past")
         if nuevo_fin <= nuevo_inicio:
             raise DomainError(422, "invalid_block_range")
+        afectados = await self._resolve_conflicts(
+            [block.professional_id] if block.professional_id else [],
+            [block.chair_id] if block.chair_id else [],
+            nuevo_inicio,
+            nuevo_fin,
+            cancelar,
+        )
 
         cambios = apply_changes(block, valores)
         if cambios:
             await self.session.flush()
+            await self._cancel(afectados, cancelar, {None: block.id})
             record_config_event(
                 self.session,
                 self.principal,
@@ -202,6 +247,69 @@ class BlocksService:
             or professional_id != self.principal.professional_id
         ):
             raise DomainError(403, "forbidden_scope")
+
+    def _assert_can_cancel(self, cancelar: Sequence[CancelInstruction]) -> None:
+        """Cancelar turnos es de admin o recepción, aunque el bloqueo sea propio (D10)."""
+        if cancelar and not (self.principal.roles & {UserRole.ADMIN, UserRole.RECEPCION}):
+            raise DomainError(403, "forbidden_role")
+
+    async def _resolve_conflicts(
+        self,
+        professional_ids: Sequence[uuid.UUID],
+        chair_ids: Sequence[uuid.UUID],
+        desde: datetime,
+        hasta: datetime,
+        cancelar: Sequence[CancelInstruction],
+    ) -> Sequence[Appointment]:
+        """Lock (D4) + turnos afectados; la request debe cubrirlos exactamente (D10).
+
+        Corre antes de escribir el bloqueo: un rechazo no deja nada pendiente.
+        """
+        await lock_resources(self.session, self.principal.clinic_id, professional_ids, chair_ids)
+        afectados = await find_affected_by_block(
+            self.session, self.principal.clinic_id, professional_ids, chair_ids, desde, hasta
+        )
+        ids = {a.id for a in afectados}
+        pedidos = [c.appointment_id for c in cancelar]
+        sobrantes = sorted(str(i) for i in set(pedidos) - ids)
+        if sobrantes or len(set(pedidos)) != len(pedidos):
+            raise DomainError(422, "invalid_cancellation", extra={"appointments": sobrantes})
+        faltantes = [str(a.id) for a in afectados if a.id not in set(pedidos)]
+        if faltantes:
+            raise DomainError(409, "block_conflicts", extra={"appointments": faltantes})
+        return afectados
+
+    async def _cancel(
+        self,
+        afectados: Sequence[Appointment],
+        cancelar: Sequence[CancelInstruction],
+        bloque_por_sillon: dict[uuid.UUID | None, uuid.UUID],
+    ) -> None:
+        """Cancela cada afectado por la máquina de estados (D6), con su evento.
+
+        `bloque_por_sillon` mapea el sillón del turno al bloqueo que lo afecta (cierre de
+        clínica); la clave `None` es el bloqueo único de un alta o edición.
+        """
+        if not afectados:
+            return
+        instrucciones = {c.appointment_id: c for c in cancelar}
+        policy = await load_policy(self.session, self.principal.clinic_id)
+        actor = Actor.from_principal(self.principal)
+        for turno in afectados:
+            instruccion = instrucciones[turno.id]
+            block_id = bloque_por_sillon.get(turno.chair_id) or bloque_por_sillon[None]
+            await apply_transition(
+                self.session,
+                turno,
+                AppointmentStatus.CANCELLED,
+                actor,
+                now=_now(),
+                tz=policy.tz,
+                cancellation_window_hours=policy.cancellation_window_hours,
+                reason=instruccion.reason,
+                note=instruccion.note,
+                extra_payload={"block_id": str(block_id)},
+            )
 
     def _new_block(self, **valores: object) -> Block:
         block = Block(

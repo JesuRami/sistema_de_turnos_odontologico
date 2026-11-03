@@ -6,6 +6,7 @@ disponible en la máquina local, se saltan con un motivo explícito; CI siempre
 levanta PostgreSQL 15 y Redis 7, por lo que allí corren completos.
 """
 
+import asyncio
 import os
 import socket
 import uuid
@@ -24,7 +25,12 @@ from app.core.settings import Settings
 from fastapi import FastAPI
 from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
 
 from tests.db_utils import alembic_config, run_admin
@@ -90,7 +96,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     )
     for item in items:
         fixtures = set(getattr(item, "fixturenames", ()))
-        necesita_db = bool(fixtures & {"db_session", "temp_database"})
+        necesita_db = bool(fixtures & {"db_session", "temp_database", "committed_engine"})
         necesita_redis = "redis_client" in fixtures
         es_integracion = item.get_closest_marker("integration") is not None
         if es_integracion:
@@ -238,3 +244,32 @@ def temp_database(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
         yield rendered
     finally:
         run_admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+@pytest.fixture()
+async def committed_engine(temp_database: str) -> AsyncIterator[AsyncEngine]:
+    """Engine sobre una DB temporal migrada donde los commits son reales (carreras, atomicidad).
+
+    Cada test recibe su propia DB y se dropea al final: nada queda en la DB compartida.
+    """
+    # Alembic corre su propio `asyncio.run`: fuera del loop del test.
+    await asyncio.to_thread(command.upgrade, alembic_config(), "head")
+    engine = create_async_engine(async_database_url(temp_database), poolclass=NullPool)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
+# Lunes 2030-01-07 08:00 en Buenos Aires (11:00 UTC): antes de abrir la agenda del día.
+AGENDA_NOW = datetime(2030, 1, 7, 11, 0, tzinfo=UTC)
+
+
+@pytest.fixture()
+def agenda_clock(app_instance: FastAPI) -> MutableClock:
+    """Reloj fijo inyectado en la app (`get_now`) para los tests de turnos (C-05)."""
+    from app.common.clock import get_now
+
+    reloj = MutableClock(current=AGENDA_NOW)
+    app_instance.dependency_overrides[get_now] = lambda: reloj.current
+    return reloj

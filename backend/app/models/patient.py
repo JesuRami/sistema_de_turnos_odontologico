@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Text, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin, TenantMixin, UUIDPrimaryKeyMixin
@@ -13,6 +13,9 @@ class Patient(UUIDPrimaryKeyMixin, TenantMixin, CreatedAtMixin, Base):
 
     __tablename__ = "patient"
     __table_args__ = (
+        # Habilita la FK compuesta (clinic_id, patient_id) desde `appointment` (C-05). Orden
+        # `(id, clinic_id)`: no compite con los índices que filtran por clínica.
+        UniqueConstraint("id", "clinic_id"),
         CheckConstraint("btrim(full_name) <> ''", name="full_name_not_blank"),
         CheckConstraint("phone_e164 IS NOT NULL OR email IS NOT NULL", name="contact_required"),
         CheckConstraint(

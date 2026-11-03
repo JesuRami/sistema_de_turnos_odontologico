@@ -8,13 +8,29 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from app.core.settings import Settings
-from app.models import Block, BlockReason, ConfigAction, ConfigEntity
+from app.models import (
+    Appointment,
+    AppointmentEvent,
+    AppointmentEventType,
+    AppointmentStatus,
+    Block,
+    BlockReason,
+    CancellationReason,
+    ConfigAction,
+    ConfigEntity,
+)
 from redis.asyncio import Redis
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.agenda_helpers import Staff, actions, config_events, make_staff
-from tests.factories import make_block, make_chair, make_professional
+from tests.factories import (
+    make_appointment,
+    make_block,
+    make_chair,
+    make_patient,
+    make_professional,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -454,3 +470,265 @@ async def test_cierre_sin_sillones_activos_es_422(
     )
 
     assert response.json() == {"detail": "no_active_chairs"}
+
+
+# ------------------------------------------- RN-BL-02: bloqueos sobre turnos (C-05)
+
+
+async def _turno(
+    db_session: AsyncSession, staff: Staff, inicio: timedelta, **overrides: object
+) -> Appointment:
+    """Turno sintético persistido directo, `inicio` desde ahora."""
+    valores: dict[str, object] = {
+        "patient": await make_patient(db_session, staff.clinic),
+        "professional": staff.professional,
+        "chair": staff.chair,
+        "created_by_user_id": staff.admin.id,
+    }
+    valores.update(overrides)
+    return await make_appointment(
+        db_session,
+        staff.clinic,
+        starts_at=datetime.now(UTC) + inicio,
+        **valores,  # type: ignore[arg-type]
+    )
+
+
+def _id(entidad: object) -> object:
+    """Identidad persistida sin IO: sobrevive a un `expire_all` previo."""
+    estado = inspect(entidad)
+    assert estado is not None and estado.identity is not None
+    return estado.identity[0]
+
+
+async def _bloqueos(db_session: AsyncSession, staff: Staff) -> int:
+    total = await db_session.scalar(
+        select(func.count()).select_from(Block).where(Block.clinic_id == _id(staff.clinic))
+    )
+    return int(total or 0)
+
+
+async def _estado(db_session: AsyncSession, appointment: Appointment) -> AppointmentStatus:
+    appointment_id = _id(appointment)
+    db_session.expire_all()
+    releido = await db_session.get(Appointment, appointment_id)
+    assert releido is not None
+    return releido.status
+
+
+async def test_bloqueo_sobre_un_turno_vigente_es_409_y_no_persiste(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    turno = await _turno(db_session, staff, timedelta(days=3))
+
+    response = await _crear(app_client, staff, "recepcion")
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "block_conflicts", "appointments": [str(turno.id)]}
+    assert await _bloqueos(db_session, staff) == 0
+
+
+async def test_bloqueo_con_resolucion_explicita_cancela_y_bloquea(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    turno = await _turno(db_session, staff, timedelta(days=3))
+    turno_id = turno.id
+    pendiente = await _turno(db_session, staff, timedelta(days=4), status=AppointmentStatus.PENDING)
+
+    response = await _crear(
+        app_client,
+        staff,
+        cancel_appointments=[
+            {"appointment_id": str(turno.id), "reason": "bloqueo", "note": "Licencia"},
+            {"appointment_id": str(pendiente.id), "reason": "profesional"},
+        ],
+    )
+
+    assert response.status_code == 201, response.text
+    assert await _estado(db_session, turno) == AppointmentStatus.CANCELLED
+    assert await _estado(db_session, pendiente) == AppointmentStatus.CANCELLED
+    evento = (
+        await db_session.execute(
+            select(AppointmentEvent).where(AppointmentEvent.appointment_id == turno_id)
+        )
+    ).scalar_one()
+    assert evento.event == AppointmentEventType.CANCELLED
+    assert evento.payload["block_id"] == response.json()["id"]
+    assert evento.payload["reason"] == "bloqueo"
+    assert await _bloqueos(db_session, staff) == 1
+
+
+async def test_resolucion_incompleta_es_409_y_no_persiste_nada(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    primero = await _turno(db_session, staff, timedelta(days=3))
+    segundo = await _turno(db_session, staff, timedelta(days=5))
+
+    response = await _crear(
+        app_client,
+        staff,
+        cancel_appointments=[{"appointment_id": str(primero.id), "reason": "bloqueo"}],
+    )
+
+    assert response.status_code == 409
+    assert response.json()["appointments"] == [str(segundo.id)]
+    assert await _estado(db_session, primero) == AppointmentStatus.CONFIRMED
+    assert await _bloqueos(db_session, staff) == 0
+
+
+async def test_cancelar_un_turno_no_afectado_es_422(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    afuera = await _turno(db_session, staff, timedelta(days=20))
+
+    response = await _crear(
+        app_client,
+        staff,
+        cancel_appointments=[{"appointment_id": str(afuera.id), "reason": "bloqueo"}],
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "invalid_cancellation"
+    assert await _estado(db_session, afuera) == AppointmentStatus.CONFIRMED
+
+
+async def test_turnos_terminados_no_piden_resolucion(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    await _turno(
+        db_session,
+        staff,
+        timedelta(days=3),
+        status=AppointmentStatus.CANCELLED,
+        cancelled_at=datetime.now(UTC),
+        cancellation_reason=CancellationReason.PACIENTE,
+    )
+    await _turno(db_session, staff, timedelta(days=4), status=AppointmentStatus.NO_SHOW)
+
+    response = await _crear(app_client, staff)
+
+    assert response.status_code == 201, response.text
+
+
+async def test_odontologo_no_cancela_turnos_con_su_bloqueo(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    turno = await _turno(db_session, staff, timedelta(days=3))
+
+    con_cancelacion = await _crear(
+        app_client,
+        staff,
+        "odontologo",
+        cancel_appointments=[{"appointment_id": str(turno.id), "reason": "profesional"}],
+    )
+    sin_cancelacion = await _crear(app_client, staff, "odontologo")
+
+    assert con_cancelacion.status_code == 403
+    assert con_cancelacion.json()["detail"] == "forbidden_role"
+    assert sin_cancelacion.status_code == 409
+    assert await _estado(db_session, turno) == AppointmentStatus.CONFIRMED
+
+
+async def test_bloqueo_de_sillon_afecta_turnos_de_cualquier_profesional(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    colega = await make_professional(db_session, staff.clinic, display_name="Dra. Sillón")
+    turno = await _turno(db_session, staff, timedelta(days=3), professional=colega)
+
+    response = await _crear(
+        app_client,
+        staff,
+        professional_id=None,
+        chair_id=str(staff.chair.id),
+        reason="mantenimiento",
+    )
+
+    assert response.status_code == 409
+    assert response.json()["appointments"] == [str(turno.id)]
+
+
+async def test_editar_bloqueo_sobre_un_turno_exige_resolucion(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    block = await make_block(
+        db_session,
+        staff.clinic,
+        professional=staff.professional,
+        starts_in=timedelta(days=2),
+        ends_at_delta=timedelta(days=1),
+    )
+    turno = await _turno(db_session, staff, timedelta(days=4))
+    ruta = f"/api/blocks/{block.id}"
+    nuevo_fin = _iso(timedelta(days=6))
+
+    sin = await app_client.patch(ruta, json={"ends_at": nuevo_fin}, headers=staff.headers["admin"])
+    con = await app_client.patch(
+        ruta,
+        json={
+            "ends_at": nuevo_fin,
+            "cancel_appointments": [{"appointment_id": str(turno.id), "reason": "bloqueo"}],
+        },
+        headers=staff.headers["admin"],
+    )
+
+    assert sin.status_code == 409
+    assert sin.json()["appointments"] == [str(turno.id)]
+    assert con.status_code == 200, con.text
+    assert await _estado(db_session, turno) == AppointmentStatus.CANCELLED
+
+
+async def test_cierre_de_clinica_sobre_turnos_exige_resolucion(
+    app_client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    redis_client: Redis,
+    settings: Settings,
+) -> None:
+    staff = await make_staff(db_session, redis_client, settings)
+    turno = await _turno(db_session, staff, timedelta(days=10, hours=2))
+    cierre = {"starts_at": _iso(timedelta(days=10)), "ends_at": _iso(timedelta(days=11))}
+
+    sin = await app_client.post("/api/blocks/closure", json=cierre, headers=staff.headers["admin"])
+    con = await app_client.post(
+        "/api/blocks/closure",
+        json={
+            **cierre,
+            "cancel_appointments": [{"appointment_id": str(turno.id), "reason": "clinica"}],
+        },
+        headers=staff.headers["admin"],
+    )
+
+    assert sin.status_code == 409
+    assert con.status_code == 201, con.text
+    assert await _estado(db_session, turno) == AppointmentStatus.CANCELLED

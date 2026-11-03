@@ -86,9 +86,9 @@ Todos los endpoints exigen access token; el tenant sale siempre del principal
   bloqueado: cargar el cierre después de dar de alta los sillones.
 - **Auditoría**: cada mutación escribe `agenda_config_event` con actor y
   `{campo: [anterior, nuevo]}` en la misma transacción.
-- **Pendiente de otros changes**: RN-BL-02 (bloqueo que pisa turnos) y el
-  rechazo de reservas sobre recursos inactivos llegan con `appointment` (C-05,
-  C-07); el snapshot de pasos de recordatorio, con C-09.
+- **Bloqueo sobre turnos (RN-BL-02, C-05)**: ver [Turnos](#turnos-c-05). El
+  rechazo de reservas online sobre recursos inactivos llega con C-07; el
+  snapshot de pasos de recordatorio, con C-09.
 
 | HTTP | `detail` | Cuándo |
 |---|---|---|
@@ -99,6 +99,100 @@ Todos los endpoints exigen access token; el tenant sale siempre del principal
 | `422` | `invalid_resource` / `resource_inactive` | profesional o sillón ajeno, inexistente o inactivo |
 | `422` | `block_in_past` / `invalid_block_range` | bloqueo que termina en el pasado o rango invertido |
 | `422` | `invalid_schedule_rule` / `no_active_chairs` / `invalid_range` | regla inválida, cierre sin sillones, rango de listado invertido |
+
+## Turnos (C-05)
+
+Invariante central (regla dura 1): dos turnos **vigentes** (`pending`,
+`confirmed`, `present`) que no son sobreturno nunca comparten profesional ni
+sillón con rangos ocupados intersectados. La garantiza la base con
+`ex_appointment_professional_no_overlap` y `ex_appointment_chair_no_overlap`
+(`EXCLUDE USING gist` sobre `tstzrange(starts_at, occupied_until, '[)')`).
+`occupied_until = ends_at + buffer_min` del profesional, **snapshot** al crear o
+reprogramar: cambiar el buffer después no reacomoda turnos existentes.
+
+| Endpoint | admin | recepción | odontólogo |
+|---|---|---|---|
+| `GET /api/appointments?from&to` (≤ 31 días, `professional_id`, `chair_id`, `status` repetible, `cursor`, `limit` ≤ 500) | R | R | R (solo los suyos, sin contacto del paciente) |
+| `GET /api/appointments/{id}` | R | R | R (propio; ajeno → `404`) |
+| `POST /api/appointments` | C | C | — |
+| `PATCH /api/appointments/{id}` (reprogramar y/o `notes`) | U | U | — |
+| `POST /api/appointments/{id}/transitions` (`{to, reason?, note?}`) | todas | todas | `present`/`absent`/`no_show` de los suyos |
+| `GET /api/appointments/{id}/events` | R | — | — |
+| `GET /api/patients?q=` · `POST /api/patients` | RC | RC | — |
+
+No existe `DELETE /api/appointments/{id}` (`405`): la única baja es cancelar con
+motivo (regla 7).
+
+- **Alta**: recepción nace `confirmed`; el servicio con `origin=online` (C-07)
+  nace `pending` y nunca es sobreturno (también por `CHECK`). Duración por
+  defecto = `slot_duration_min` de la regla que contiene el inicio. El turno
+  debe caer completo en una regla activa y vigente del par profesional-sillón,
+  en la zona de la clínica; no puede caer en un bloqueo; no se aceptan días
+  locales pasados (hoy sí, para registrar a quien ya llegó). Datetimes sin zona
+  → `422`.
+- **Lock por recurso**: alta, reprogramación y bloqueos toman `SELECT … FOR
+  UPDATE` sobre `professional` y luego `chair` (ordenados por id). Serializa lo
+  que el EXCLUDE no cubre (bloqueos, sobreturnos, tope diario). **Todo camino
+  que escriba turnos debe pasar por `AppointmentsService.book`** (contrato C-07).
+- **Sobreturno (RN-SB)**: `is_overbooking=true` + `overbooking_reason`, solo
+  admin/recepción y solo si el horario colisiona. Queda fuera del EXCLUDE; un
+  turno normal tampoco puede caer sobre un sobreturno vigente. Tope diario por
+  profesional (`max_overbookings_per_day`): recepción `409`, el admin lo excede
+  y el evento registra `over_limit=true`.
+- **Estados**: `pending→confirmed`, `confirmed→present` (desde el día local del
+  turno), `confirmed→absent|no_show` (desde `starts_at`),
+  `pending|confirmed→cancelled` (antes de `starts_at`, motivo del catálogo
+  `paciente|profesional|clinica|bloqueo|otro`, nota ≤ 500). `absent` = no vino
+  pero avisó (tarde o con justificación); `no_show` = no vino y no avisó.
+  `cancelled`, `absent` y `no_show` son terminales y liberan el hueco. El evento
+  de cancelación indica `late` según `cancellation_window_hours`.
+- **Bloqueo sobre turnos (RN-BL-02)**: `POST/PATCH /api/blocks` y
+  `POST /api/blocks/closure` aceptan `cancel_appointments: [{appointment_id,
+  reason, note?}]`. Si el rango pisa turnos `pending/confirmed` del profesional
+  o del sillón, la lista debe cubrirlos **exactamente**: faltantes → `409
+  block_conflicts`, sobrantes → `422 invalid_cancellation`. Cancelación y
+  bloqueo van en la misma transacción. Cancelar exige admin o recepción.
+- **Auditoría**: `appointment_event` append-only (trigger
+  `trg_appointment_event_no_mutate`), escrito en la misma transacción que cada
+  mutación, con actor, estados y antes/después. Nunca nombre, teléfono ni email
+  del paciente. La agenda lee `appointment`; los reportes (C-13) leen eventos.
+- **Pacientes**: búsqueda por teléfono normalizado (E.164) o por similitud de
+  nombre (trigram, máximo 20); alta rápida con `409 patient_duplicate` si
+  coinciden teléfono y nombre normalizado (familias con otro nombre se aceptan).
+  Los errores de teléfono/email no incluyen el valor enviado.
+
+| HTTP | `detail` | Cuándo |
+|---|---|---|
+| `409` | `slot_taken` | colisión; `conflicts: [ids]` + `alternatives: [{starts_at, ends_at, professional_id, chair_id}]` (≤ 3, 14 días) |
+| `409` | `slot_blocked` | el turno pisa un bloqueo; `blocks: [ids]` |
+| `409` | `resource_inactive` | profesional o sillón con `active=false` |
+| `409` | `overbooking_limit` | recepción supera el tope diario de sobreturnos |
+| `409` | `invalid_transition` | transición fuera de la tabla, o reprogramar un turno no vigente |
+| `409` | `appointment_started` / `attendance_too_early` | guardas temporales de cancelar/confirmar/reprogramar o de asistencia |
+| `409` | `appointment_changed` | el turno se movió en paralelo mientras se esperaba el lock |
+| `409` | `block_conflicts` | bloqueo que pisa turnos sin resolver; `appointments: [ids]` |
+| `409` | `patient_duplicate` | mismo teléfono y nombre; `patient_id` |
+| `422` | `outside_schedule` / `appointment_in_past` / `overbooking_not_needed` | fuera de plantilla, día pasado, sobreturno sin colisión |
+| `422` | `invalid_patient` / `invalid_resource` | paciente, profesional o sillón ajeno o inexistente (sin revelar cuál) |
+| `422` | `invalid_range` | rango de listado invertido o > 31 días |
+| `422` | `query_too_short` / `query_too_long` / `invalid_phone` / `invalid_email` / `contact_required` | búsqueda y alta de pacientes |
+| `422` | `invalid_cancellation` | `cancel_appointments` con turnos no afectados o repetidos |
+
+### Revisión `c05_appointments_core` (C-05)
+
+- `patient`: UNIQUE `uq_patient_id_clinic_id` para la FK compuesta desde
+  `appointment` (regla 4), construido con `CREATE UNIQUE INDEX CONCURRENTLY`
+  fuera de transacción y promovido con `ADD CONSTRAINT … USING INDEX` (regla 11).
+- Tablas nuevas `appointment` (2 EXCLUDE, CHECKs de coherencia, índices) y
+  `appointment_event` (trigger append-only); enums `appointment_status`,
+  `appointment_origin`, `cancellation_reason`, `appointment_event_type`,
+  `actor_type`.
+- Inmutabilidad de eventos: hoy la garantiza el trigger; un rol `app_writer`
+  separado del owner llega con C-14 (la app se conecta como owner).
+
+⚠️ **El downgrade pierde todos los turnos y su auditoría**: `alembic downgrade
+c04_agenda_config` hace `DROP TABLE appointment_event` y `DROP TABLE
+appointment`. Exportarlos antes con `COPY … TO STDOUT CSV HEADER`.
 
 ## Seed del tenant inicial
 

@@ -4,7 +4,7 @@ from alembic import command
 
 from tests.db_utils import alembic_config, fetch_rows
 
-TABLAS = {"clinic", "professional", "chair", "schedule_rule", "patient", "user"}
+TABLAS = {"clinic", "professional", "chair", "schedule_rule", "patient", "user", "auth_event"}
 INDICES = {
     "uq_clinic_slug",
     "ix_professional_clinic_id_active",
@@ -12,6 +12,9 @@ INDICES = {
     "ix_patient_clinic_id_phone_e164",
     "ix_patient_full_name_trgm",
     "ix_schedule_rule_professional_id_chair_id_weekday",
+    "ix_auth_event_clinic_id_created_at",
+    "ix_auth_event_user_id_created_at",
+    "uq_user_clinic_id_id",
 }
 
 
@@ -69,7 +72,56 @@ def test_upgrade_crea_tablas_e_indices_del_change(temp_database: str) -> None:
 
     assert _tablas(temp_database) == TABLAS
     assert INDICES <= _indices(temp_database)
-    assert _enums(temp_database) == {"user_role"}
+    assert _enums(temp_database) == {"user_role", "auth_event_type"}
+
+
+def test_upgrade_crea_los_objetos_de_auth_de_c03(temp_database: str) -> None:
+    """WHEN upgrade head THEN existen password_changed_at, auth_event, enum, índices y trigger."""
+    command.upgrade(alembic_config(), "head")
+
+    columnas_user = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'user'",
+            temp_database,
+        )
+    }
+    assert "password_changed_at" in columnas_user
+    assert "auth_event" in _tablas(temp_database)
+    assert "auth_event_type" in _enums(temp_database)
+    assert {
+        "ix_auth_event_clinic_id_created_at",
+        "ix_auth_event_user_id_created_at",
+    } <= _indices(temp_database)
+    triggers = fetch_rows(
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'auth_event'::regclass "
+        "AND NOT tgisinternal",
+        temp_database,
+    )
+    assert {str(r[0]) for r in triggers} == {"trg_auth_event_no_mutate"}
+
+
+def test_downgrade_a_c02_elimina_los_objetos_de_c03(temp_database: str) -> None:
+    """WHEN downgrade c02_core_models THEN no queda ningún objeto de c03."""
+    cfg = alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "c02_core_models")
+
+    assert "auth_event" not in _tablas(temp_database)
+    assert "auth_event_type" not in _enums(temp_database)
+    columnas_user = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'user'",
+            temp_database,
+        )
+    }
+    assert "password_changed_at" not in columnas_user
+    assert {
+        "ix_auth_event_clinic_id_created_at",
+        "ix_auth_event_user_id_created_at",
+        "uq_user_clinic_id_id",
+    }.isdisjoint(_indices(temp_database))
 
 
 def test_indice_trigram_es_gin_con_gin_trgm_ops(temp_database: str) -> None:

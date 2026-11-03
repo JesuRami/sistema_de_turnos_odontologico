@@ -1,27 +1,88 @@
-"""Dependencias FastAPI compartidas (RBAC completo en C-03)."""
+"""Dependencias FastAPI compartidas: sesión de DB y principal autenticado (C-03)."""
+
+from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, cast
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends, Request
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.common.exceptions import DomainError
+from app.common.principal import Principal
+from app.core.jwt import TokenError, decode_access_token
+from app.core.redis import get_redis
 from app.core.settings import Settings, get_settings
+from app.models import User
+from app.modules.auth.sessions import session_alive
 
 
-async def get_db() -> AsyncIterator[AsyncSession]:
-    """Sesión async por request (engine real se cablea en C-02)."""
-    raise NotImplementedError("DB session wiring llega en C-02")
+async def get_db(request: Request) -> AsyncIterator[AsyncSession]:
+    """Sesión async por request; el engine/`sessionmaker` viven en el `lifespan`."""
+    maker = cast(async_sessionmaker[AsyncSession], request.app.state.sessionmaker)
+    async with maker() as session:
+        yield session
 
 
-def require_roles(*roles: str) -> object:
-    """Fábrica de dependencias RBAC (stub C-01; enforcement en C-03)."""
+def _bearer_token(request: Request) -> str:
+    """Extrae el token de `Authorization: Bearer`; sin credencial es `401` (nunca 403)."""
+    header = request.headers.get("Authorization", "")
+    scheme, _, value = header.partition(" ")
+    token = value.strip()
+    if scheme.lower() != "bearer" or not token:
+        raise DomainError(401, "token_invalid")
+    return token
 
-    async def _checker(settings: Annotated[Settings, Depends(get_settings)]) -> None:
-        _ = (roles, settings)
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="RBAC se implementa en C-03",
-        )
 
-    return _checker
+async def get_current_principal(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Principal:
+    """Valida el access y reconstruye el principal desde la fila de `user`.
+
+    Orden: firma/claims → sesión viva en Redis → usuario activo por
+    `(id, clinic_id)`. Redis caído es `503 auth_unavailable` (fail-closed),
+    nunca `401` ni "sin sesión". Cualquier inconsistencia del token o de la
+    sesión es `401` con código corto, sin detalle de la causa.
+    """
+    token = _bearer_token(request)
+    try:
+        claims = decode_access_token(token, settings)
+    except TokenError as exc:
+        raise DomainError(401, exc.code) from None
+
+    try:
+        alive = await session_alive(redis, claims.sid)
+    except RedisError:
+        raise DomainError(503, "auth_unavailable") from None
+    if not alive:
+        raise DomainError(401, "invalid_session")
+
+    # Columnas explícitas (regla 8): el principal jamás arrastra el hash.
+    stmt = select(
+        User.id,
+        User.clinic_id,
+        User.email,
+        User.role,
+        User.professional_id,
+        User.active,
+        User.must_change_password,
+    ).where(User.id == claims.user_id, User.clinic_id == claims.clinic_id)
+    row = (await session.execute(stmt)).one_or_none()
+    if row is None or not bool(row.active):
+        raise DomainError(401, "invalid_session")
+
+    return Principal(
+        user_id=row.id,
+        clinic_id=row.clinic_id,
+        email=str(row.email),
+        roles=frozenset({row.role}),
+        professional_id=row.professional_id,
+        sid=claims.sid,
+        must_change_password=bool(row.must_change_password),
+    )

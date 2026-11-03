@@ -26,6 +26,8 @@ class User(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     __tablename__ = "user"
     __table_args__ = (
         UniqueConstraint("clinic_id", "email"),
+        # Habilita la FK compuesta de `auth_event` (C-03) y de futuros hijos.
+        UniqueConstraint("clinic_id", "id"),
         ForeignKeyConstraint(
             ["clinic_id", "professional_id"], ["professional.clinic_id", "professional.id"]
         ),
@@ -54,3 +56,6 @@ class User(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         Boolean, nullable=False, server_default=text("true")
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

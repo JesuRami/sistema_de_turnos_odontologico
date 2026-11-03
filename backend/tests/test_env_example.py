@@ -29,6 +29,13 @@ def test_claves_requeridas_presentes_en_ejemplo() -> None:
     # Contrato completo del spec (WHEN se inspecciona .env.example THEN contiene…).
     for expected in (
         "JWT_ACCESS_MINUTES",
+        "JWT_REFRESH_DAYS",
+        "REDIS_AUTH_DB",
+        "AUTH_LOGIN_RATE_LIMIT",
+        "AUTH_LOGIN_IP_RATE_LIMIT",
+        "AUTH_REFRESH_RATE_LIMIT",
+        "AUTH_PASSWORD_RATE_LIMIT",
+        "COOKIE_DOMAIN",
         "WHATSAPP_TOKEN",
         "CLINIC_TZ_DEFAULT",
         "BOOKING_RATE_LIMIT",

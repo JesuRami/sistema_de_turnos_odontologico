@@ -29,7 +29,9 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://turnos:ci-secret@localhost:5432/turnos
       REDIS_URL: redis://localhost:6379/0
-      JWT_SECRET: ci-secret-no-produccion
+      # ≥32 bytes: el arranque de la app rechaza secretos cortos (C-03).
+      JWT_SECRET: ci-secret-solo-para-tests-32-bytes-minimo
+      REDIS_AUTH_DB: "15"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

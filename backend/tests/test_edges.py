@@ -7,32 +7,50 @@ from app.main import create_app
 
 @pytest.fixture()
 def app() -> object:
-    """App de test."""
+    """App de test (sin DB: los 422 de borde se resuelven en validación)."""
     return create_app()
 
 
 async def test_campo_extra_rechazado_con_422(app: object) -> None:
-    """WHEN campo no declarado en endpoint con body THEN 422 {"detail":...} sin traza."""
+    """WHEN campo no declarado en el login THEN 422 {"detail":...} sin traza."""
     transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
     async with httpx.AsyncClient(
         transport=transport, base_url="http://test", timeout=5.0
     ) as client:
-        response = await client.post("/auth/echo", json={"ping": "ok", "campo_fantasma": 1})
+        response = await client.post(
+            "/api/auth/login",
+            json={
+                "email": "staff.ficticio@example.com",
+                "password": "clave-ficticia-123",
+                "campo_fantasma": 1,
+            },
+        )
     assert response.status_code == 422
     body = response.json()
     assert "detail" in body
     assert "Traceback" not in str(body)
 
 
-async def test_echo_valido_responde_200(app: object) -> None:
-    """Borde válido pasa la validación estricta."""
+async def test_login_sin_password_es_422(app: object) -> None:
+    """WHEN falta un campo obligatorio del login THEN 422 de validación."""
+    transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test", timeout=5.0
+    ) as client:
+        response = await client.post(
+            "/api/auth/login", json={"email": "staff.ficticio@example.com"}
+        )
+    assert response.status_code == 422
+
+
+async def test_stubs_de_auth_eliminados(app: object) -> None:
+    """WHEN se llama el viejo stub THEN ya no existe (404)."""
     transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
     async with httpx.AsyncClient(
         transport=transport, base_url="http://test", timeout=5.0
     ) as client:
         response = await client.post("/auth/echo", json={"ping": "ok"})
-    assert response.status_code == 200
-    assert response.json() == {"ping": "ok"}
+    assert response.status_code == 404
 
 
 async def test_rate_limit_global_activo(app: object) -> None:
@@ -46,8 +64,8 @@ async def test_rate_limit_global_activo(app: object) -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://test", timeout=5.0
     ) as client:
-        await client.post("/auth/echo", json={"ping": "ok"})
-        await client.post("/auth/echo", json={"ping": "ok"})
-        response = await client.post("/auth/echo", json={"ping": "ok"})
+        await client.get("/openapi.json")
+        await client.get("/openapi.json")
+        response = await client.get("/openapi.json")
     assert response.status_code == 429
     assert "detail" in response.json()

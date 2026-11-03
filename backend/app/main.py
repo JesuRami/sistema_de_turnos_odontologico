@@ -7,6 +7,8 @@ CORS restrictivo + rate-limit global + salud observable (`/health`, `/ready`)
 import re
 import time
 from collections import defaultdict
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.common.exceptions import register_exception_handlers
+from app.core.database import create_engine, create_sessionmaker
+from app.core.redis import create_redis_client
 from app.core.settings import Settings, get_settings
 from app.modules.agenda.router import router as agenda_router
 from app.modules.auth.router import router as auth_router
@@ -68,7 +72,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     max_requests, window_s = parse_rate_limit(settings.BOOKING_RATE_LIMIT)
 
-    app = FastAPI(title="Sistema de Turnos Odontológico", version="0.1.0")
+    engine = create_engine(str(settings.DATABASE_URL))
+    redis_client = create_redis_client(settings)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        """Cierra el pool de Redis y el engine al apagar el proceso."""
+        try:
+            yield
+        finally:
+            await app.state.redis.aclose()
+            await app.state.engine.dispose()
+
+    app = FastAPI(
+        title="Sistema de Turnos Odontológico",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
 
     origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
     app.add_middleware(
@@ -82,6 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
 
     app.state.settings = settings
+    app.state.engine = engine
+    app.state.sessionmaker = create_sessionmaker(engine)
+    app.state.redis = redis_client
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -93,7 +116,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Readiness: Postgres + Redis alcanzables; 503 si alguna cae."""
         unavailable: list[str] = []
         import asyncpg  # diferido para tests sin DB
-        import redis.asyncio as aioredis
 
         try:
             conn = await asyncpg.connect(str(settings.DATABASE_URL), timeout=2)
@@ -101,9 +123,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except Exception:
             unavailable.append("postgres")
         try:
-            client = aioredis.from_url(str(settings.REDIS_URL))  # type: ignore[no-untyped-call]
-            await client.ping()
-            await client.aclose()
+            # Cliente compartido de la app: no se crea uno por request.
+            await app.state.redis.ping()
         except Exception:
             unavailable.append("redis")
         if unavailable:

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from app.core.settings import Settings
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.settings import Settings
 from tests.appointment_helpers import at, iso, make_agenda
-from tests.factories import make_patient
 from tests.conftest import MutableClock
+from tests.factories import make_patient
 from tests.report_helpers import DIA, DIA2, alta, fijar_reloj, rango, reporte, transicion
 
 pytestmark = pytest.mark.integration

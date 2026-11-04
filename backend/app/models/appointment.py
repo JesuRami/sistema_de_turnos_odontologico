@@ -19,6 +19,7 @@ from sqlalchemy import (
     Enum,
     ForeignKeyConstraint,
     Index,
+    LargeBinary,
     Text,
     UniqueConstraint,
     literal_column,
@@ -91,6 +92,20 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
             "origin <> 'reception' OR created_by_user_id IS NOT NULL",
             name="reception_has_creator",
         ),
+        # C-07 (D8): solo el SHA-256 del token de gestión; todo turno online lo lleva.
+        CheckConstraint(
+            "manage_token_hash IS NULL OR octet_length(manage_token_hash) = 32",
+            name="manage_token_hash_length",
+        ),
+        CheckConstraint(
+            "origin <> 'online' OR manage_token_hash IS NOT NULL", name="online_has_manage_token"
+        ),
+        Index(
+            "uq_appointment_manage_token_hash",
+            "manage_token_hash",
+            unique=True,
+            postgresql_where=text("manage_token_hash IS NOT NULL"),
+        ),
         Index(None, "clinic_id", "starts_at"),
         Index(None, "professional_id", "starts_at"),
         Index(None, "patient_id", "starts_at"),
@@ -134,3 +149,5 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     # Notas operativas de recepción; nunca clínicas (la historia clínica llega en C-15).
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # SHA-256 (32 bytes) del token de gestión del paciente; el token en claro no se guarda.
+    manage_token_hash: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)

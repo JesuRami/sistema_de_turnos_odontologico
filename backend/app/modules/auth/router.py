@@ -10,17 +10,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
 from redis.asyncio import Redis
-from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import DomainError
 from app.common.principal import Principal
+from app.common.rate_limit_guard import consume
+from app.common.request_meta import client_ip
 from app.core.deps import get_current_principal, get_db
 from app.core.rate_limit import (
-    hit,
     login_ip_key,
     login_pair_key,
-    parse_window_spec,
     password_key,
     refresh_ip_key,
 )
@@ -50,14 +49,8 @@ PrincipalDep = Annotated[Principal, Depends(get_current_principal)]
 
 
 async def _consume(redis: Redis, key: str, spec: str) -> None:
-    """Consume un cupo de la ventana fija; 429 con `Retry-After` si se excede."""
-    limit, window_s = parse_window_spec(spec)
-    try:
-        resultado = await hit(redis, key, limit, window_s)
-    except RedisError:
-        raise DomainError(503, "auth_unavailable") from None
-    if not resultado.allowed:
-        raise DomainError(429, "rate_limited", headers={"Retry-After": str(resultado.retry_after)})
+    """Consume un cupo de auth; Redis caído → `503 auth_unavailable` (fail-closed)."""
+    await consume(redis, key, spec, unavailable_code="auth_unavailable")
 
 
 def _check_origin(request: Request, settings: Settings) -> None:
@@ -70,10 +63,6 @@ def _check_origin(request: Request, settings: Settings) -> None:
         raise DomainError(403, "origin_not_allowed")
 
 
-def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
-
-
 @router.post("/login", response_model=LoginResponse)
 async def login(
     payload: LoginRequest,
@@ -84,7 +73,7 @@ async def login(
     settings: SettingsDep,
 ) -> LoginResponse:
     """Autentica al personal y emite access + cookie de refresh."""
-    ip = _client_ip(request)
+    ip = client_ip(request)
     await _consume(redis, login_pair_key(ip, payload.email), settings.AUTH_LOGIN_RATE_LIMIT)
     await _consume(redis, login_ip_key(ip), settings.AUTH_LOGIN_IP_RATE_LIMIT)
 
@@ -108,7 +97,7 @@ async def refresh(
 ) -> AccessTokenResponse:
     """Rota el refresh de la cookie y devuelve un access nuevo."""
     _check_origin(request, settings)
-    await _consume(redis, refresh_ip_key(_client_ip(request)), settings.AUTH_REFRESH_RATE_LIMIT)
+    await _consume(redis, refresh_ip_key(client_ip(request)), settings.AUTH_REFRESH_RATE_LIMIT)
 
     token = request.cookies.get(refresh_cookie_name(settings))
     if not token:
@@ -139,7 +128,7 @@ async def logout(
 ) -> Response:
     """Cierra la sesión del access o, si venció, de la cookie; idempotente."""
     _check_origin(request, settings)
-    await _consume(redis, refresh_ip_key(_client_ip(request)), settings.AUTH_REFRESH_RATE_LIMIT)
+    await _consume(redis, refresh_ip_key(client_ip(request)), settings.AUTH_REFRESH_RATE_LIMIT)
 
     service = AuthService(session, redis, settings)
     await service.logout(

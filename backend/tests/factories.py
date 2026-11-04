@@ -4,7 +4,9 @@ Todo valor es obviamente falso: nombres inventados, emails @example.com y
 teléfonos de rango ficticio. Nunca datos reales.
 """
 
+import hashlib
 import itertools
+import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
@@ -194,6 +196,9 @@ async def make_appointment(
         "origin": AppointmentOrigin.RECEPTION,
     }
     values.update(overrides)
+    if values["origin"] == AppointmentOrigin.ONLINE and "manage_token_hash" not in values:
+        # C-07: todo turno online lleva el hash de su token (CHECK de la base).
+        values["manage_token_hash"] = hashlib.sha256(uuid.uuid4().bytes).digest()
     if values["origin"] == AppointmentOrigin.RECEPTION and "created_by_user_id" not in values:
         values["created_by_user_id"] = (await make_user(session, clinic)).id
     appointment = Appointment(**values)

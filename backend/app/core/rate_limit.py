@@ -80,3 +80,18 @@ async def hit(redis: Redis, key: str, limit: int, window_s: float) -> RateLimitR
     usado = int(actual)
     restante = int(ttl) if int(ttl) > 0 else int(window_s)
     return RateLimitResult(allowed=usado <= limit, retry_after=restante)
+
+
+def booking_read_key(ip: str) -> str:
+    """Clave del cupo de lecturas públicas (catálogo/disponibilidad) por IP (C-07)."""
+    return f"rl:booking:read:ip:{ip}"
+
+
+def booking_create_ip_key(ip: str) -> str:
+    """Clave del cupo de reservas públicas por IP (C-07, RN-ON-03)."""
+    return f"rl:booking:create:ip:{ip}"
+
+
+def booking_create_slug_key(clinic_id: object) -> str:
+    """Clave del cupo de reservas públicas por clínica: solo con slug resuelto (C-07)."""
+    return f"rl:booking:create:slug:{clinic_id}"

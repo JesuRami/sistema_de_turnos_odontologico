@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     # Reserva pública / tokens de gestión.
     BOOKING_RATE_LIMIT: str = "30/minute"
     MANAGE_TOKEN_TTL_H: int = 72
+    # Reserva pública (C-07, D2/D14): cupos Redis `<intentos>/<segundos>s`, horizonte y versión
+    # de la política de privacidad aceptada. `BOOKING_RATE_LIMIT` (arriba) sigue siendo el tope
+    # global en memoria de C-01; estos cupos son los estrictos por IP / clínica.
+    PUBLIC_BOOKING_IP_RATE_LIMIT: str = "10/3600s"
+    PUBLIC_BOOKING_SLUG_RATE_LIMIT: str = "300/3600s"
+    PUBLIC_BOOKING_READ_RATE_LIMIT: str = "120/60s"
+    PUBLIC_BOOKING_HORIZON_DAYS: int = Field(default=60, ge=1)
+    PRIVACY_POLICY_VERSION: str = "2026-11-placeholder"
+    BOT_GUARD: str = "noop"
     FRONTEND_PUBLIC_URL: str = "http://localhost:5173"
     CORS_ORIGINS: str = "http://localhost:5173"
 
@@ -87,6 +96,9 @@ class Settings(BaseSettings):
         "AUTH_LOGIN_IP_RATE_LIMIT",
         "AUTH_REFRESH_RATE_LIMIT",
         "AUTH_PASSWORD_RATE_LIMIT",
+        "PUBLIC_BOOKING_IP_RATE_LIMIT",
+        "PUBLIC_BOOKING_SLUG_RATE_LIMIT",
+        "PUBLIC_BOOKING_READ_RATE_LIMIT",
     )
     @classmethod
     def _validar_rate_limit(cls, valor: str) -> str:

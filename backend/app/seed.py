@@ -12,6 +12,10 @@ Reglas:
   DO NOTHING`): reejecutar no duplica filas ni pisa la clave de un admin existente.
 - El sillón y el profesional de ejemplo se crean solo con la clínica; reejecutar
   sobre una clínica existente no los vuelve a crear aunque se hayan renombrado.
+- `SEED_BOOKING_DEMO=true` (opcional, C-07): la clínica nueva queda con reserva pública
+  habilitada, el profesional de ejemplo activo y reservable, y una regla lunes-viernes
+  09:00-13:00 de 30 min sobre el sillón (clínica demo / E2E). Sin el flag, la clínica no
+  queda pública: habilitar `booking_enabled` es una decisión explícita (solo seed).
 """
 
 import asyncio
@@ -19,19 +23,23 @@ import os
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.database import async_database_url
 from app.core.security import hash_password
-from app.models import Chair, Clinic, Professional, User, UserRole
+from app.models import Chair, Clinic, Professional, ScheduleRule, User, UserRole
 
 SEED_VARS = ("SEED_CLINIC_SLUG", "SEED_CLINIC_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD")
 SAMPLE_CHAIR_NAME = "Sillón 1"
 SAMPLE_PROFESSIONAL_NAME = "Profesional Ficticio de Ejemplo"
+DEMO_WEEKDAYS = range(5)  # lunes a viernes
+DEMO_SLOT_MIN = 30
+_TRUTHY = frozenset({"1", "true", "yes", "si"})
 
 
 class SeedConfigError(Exception):
@@ -46,6 +54,7 @@ class SeedConfig:
     clinic_name: str
     admin_email: str
     admin_password: str
+    booking_demo: bool = False
 
     def __repr__(self) -> str:
         return f"SeedConfig(clinic_slug={self.clinic_slug!r})"
@@ -62,6 +71,7 @@ def read_seed_config(environ: Mapping[str, str]) -> SeedConfig:
         clinic_name=values["SEED_CLINIC_NAME"],
         admin_email=values["SEED_ADMIN_EMAIL"],
         admin_password=values["SEED_ADMIN_PASSWORD"],
+        booking_demo=environ.get("SEED_BOOKING_DEMO", "").strip().lower() in _TRUTHY,
     )
 
 
@@ -94,12 +104,38 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
         .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
     )
     if created_id is not None:
-        session.add(Chair(clinic_id=clinic_id, name=SAMPLE_CHAIR_NAME, active=True))
-        session.add(
-            Professional(clinic_id=clinic_id, display_name=SAMPLE_PROFESSIONAL_NAME, active=False)
+        chair = Chair(clinic_id=clinic_id, name=SAMPLE_CHAIR_NAME, active=True)
+        professional = Professional(
+            clinic_id=clinic_id, display_name=SAMPLE_PROFESSIONAL_NAME, active=config.booking_demo
         )
+        session.add_all([chair, professional])
         await session.flush()
+        if config.booking_demo:
+            await _enable_booking_demo(session, clinic_id, chair, professional)
     return created_id is not None
+
+
+async def _enable_booking_demo(
+    session: AsyncSession, clinic_id: object, chair: Chair, professional: Professional
+) -> None:
+    """Clínica demo reservable: reserva habilitada y plantilla lunes-viernes (datos ficticios)."""
+    await session.execute(update(Clinic).where(Clinic.id == clinic_id).values(booking_enabled=True))
+    # Un día de holgura: la zona de la clínica puede ir un día atrás de UTC.
+    hoy = datetime.now(UTC).date() - timedelta(days=1)
+    session.add_all(
+        ScheduleRule(
+            clinic_id=clinic_id,
+            professional_id=professional.id,
+            chair_id=chair.id,
+            weekday=weekday,
+            start_time=time(9),
+            end_time=time(13),
+            slot_duration_min=DEMO_SLOT_MIN,
+            valid_from=hoy,
+        )
+        for weekday in DEMO_WEEKDAYS
+    )
+    await session.flush()
 
 
 async def run_seed(database_url: str, config: SeedConfig) -> bool:

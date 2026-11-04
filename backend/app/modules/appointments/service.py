@@ -86,6 +86,8 @@ class Booking:
     is_overbooking: bool = False
     overbooking_reason: str | None = None
     notes: str | None = None
+    # C-07: SHA-256 del token de gestión (solo reserva online); el token en claro no entra acá.
+    manage_token_hash: bytes | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,8 +345,18 @@ class AppointmentsService:
         await self.session.commit()
         return await self.get(appointment.id)
 
-    async def book(self, data: Booking, *, origin: AppointmentOrigin) -> Appointment:
-        """Valida bajo lock y escribe el turno + su evento (sin commit; C-07 lo reutiliza)."""
+    async def book(
+        self,
+        data: Booking,
+        *,
+        origin: AppointmentOrigin,
+        event_extra: dict[str, Any] | None = None,
+    ) -> Appointment:
+        """Valida bajo lock y escribe el turno + su evento (sin commit; C-07 lo reutiliza).
+
+        `event_extra` se mezcla en el payload del evento `created` (C-07: canal elegido);
+        nunca debe llevar datos personales ni el token.
+        """
         if data.is_overbooking:
             if origin is AppointmentOrigin.ONLINE:
                 raise DomainError(422, "overbooking_not_allowed")
@@ -378,6 +390,7 @@ class AppointmentsService:
             overbooking_reason=data.overbooking_reason if data.is_overbooking else None,
             notes=data.notes,
             created_by_user_id=self.actor.user_id,
+            manage_token_hash=data.manage_token_hash,
         )
         await self._write(data, resuelto, policy, add=appointment)
 
@@ -389,6 +402,7 @@ class AppointmentsService:
             "starts_at": data.starts_at,
             "ends_at": resuelto.ends_at,
             "occupied_until": resuelto.occupied_until,
+            **(event_extra or {}),
         }
         evento = AppointmentEventType.CREATED
         if data.is_overbooking:

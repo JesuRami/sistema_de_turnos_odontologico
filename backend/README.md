@@ -232,11 +232,97 @@ c05_appointments_core` hace `DROP TABLE patient_merge` y elimina el puntero; los
 fusionados quedan archivados pero sin saber en quién se fusionaron. Exportar
 antes con `COPY … TO STDOUT CSV HEADER`.
 
+## Reserva pública (C-07)
+
+Superficie anónima, sin `Principal`: la clínica se resuelve **solo por slug**
+(`clinic.booking_enabled=true`) y todo se filtra por ese `clinic_id`.
+
+| Método | Ruta | Cupo Redis (clave) |
+|---|---|---|
+| `GET` | `/api/booking/{slug}` | lecturas por IP (`rl:booking:read:ip:{ip}`) |
+| `GET` | `/api/booking/{slug}/availability?professional_id&from&to` | lecturas por IP |
+| `POST` | `/api/booking/{slug}/appointments` | reservas por IP + por clínica |
+
+- **Catálogo**: nombre, zona horaria y profesionales reservables (solo `id` y
+  `display_name`). Reservable = activo, `booking_enabled`, con regla semanal
+  activa no vencida sobre un sillón activo.
+- **Disponibilidad**: huecos `{starts_at, ends_at, professional_id}`, unión por
+  sillón de `suggest_slots` (plantilla − bloqueos − turnos vigentes − buffer, desde
+  ahora). Sin sillones, ids de turnos, estados ni conteos. Rango ≤ 14 días y
+  `to` dentro del horizonte (`PUBLIC_BOOKING_HORIZON_DAYS`, default 60).
+- **Reserva**: cuerpo `extra='forbid'` con `professional_id`, `starts_at` (con zona)
+  y `patient{full_name, phone?, email?, whatsapp_opt_in?, privacy_accepted}`. El
+  servidor elige el sillón (orden de id) y escribe solo vía
+  `AppointmentsService.book(origin=ONLINE)`: turno `pending`, sin sobreturno, con la
+  duración de la regla. Respuesta `201 {starts_at, ends_at, professional_id, channel,
+  warnings, manage_url}` con `Cache-Control: no-store` y `Referrer-Policy: no-referrer`.
+- **Token de gestión**: `secrets.token_urlsafe(32)` (256 bits), devuelto **una sola
+  vez** en `manage_url`; la base guarda solo `sha256(token)` (`appointment.manage_token_hash`,
+  `bytea(32)`, único). Nunca va a eventos ni logs. TTL y rotación: C-08.
+- **Paciente**: match por teléfono E.164 + nombre normalizado (RN-ON-05); sin
+  teléfono válido siempre se crea uno nuevo; un paciente existente nunca pierde ni
+  cambia nombre/contactos y su opt-in de WhatsApp solo pasa de `false` a `true`.
+- **Auditoría**: evento `created` con `actor_type=patient_token`, `origin=online` y
+  `channel`, sin datos personales.
+
+### Códigos de error públicos
+
+| Código | Cuándo |
+|---|---|
+| `404 booking_not_found` | slug inexistente o reserva deshabilitada (cuerpo idéntico) |
+| `404 professional_not_found` | profesional ajeno, inactivo, deshabilitado o sin regla |
+| `422 invalid_range` | `to <= from`, > 14 días o más allá del horizonte |
+| `422 contact_required` | sin teléfono válido ni email válido |
+| `422 whatsapp_opt_in_required` | teléfono válido sin elegir/aceptar WhatsApp y sin email |
+| `422 privacy_consent_required` | `privacy_accepted=false` |
+| `422 slot_not_offered` / `appointment_in_past` | inicio fuera de grilla/horizonte / no futuro |
+| `422 invalid_request` | campo no permitido o tipo inválido (solo nombres de campo, sin valores) |
+| `409 slot_taken` | hueco ocupado: `{alternatives:[{starts_at, ends_at, professional_id}]}` (≤ 3, sin `conflicts` ni sillón) |
+| `429 rate_limited` | cupo agotado, con `Retry-After` |
+| `503 booking_unavailable` | Redis caído (falla cerrada) |
+| `403 bot_check_failed` | el `BotGuard` configurado rechazó la solicitud |
+
+Canal según D5: teléfono válido + opt-in → `whatsapp`; opt-in rechazado o teléfono
+inválido con email válido → `email` con aviso (`whatsapp_declined_email_channel` /
+`phone_invalid_email_channel`; un teléfono inválido se descarta).
+
+### Cupos y settings
+
+`PUBLIC_BOOKING_IP_RATE_LIMIT` (`10/3600s`, se consume **antes** de validar el cuerpo:
+un 422 también gasta), `PUBLIC_BOOKING_SLUG_RATE_LIMIT` (`300/3600s`, solo con slug
+resuelto), `PUBLIC_BOOKING_READ_RATE_LIMIT` (`120/60s`, antes de resolver el slug),
+`PUBLIC_BOOKING_HORIZON_DAYS` (60), `PRIVACY_POLICY_VERSION` y `BOT_GUARD` (`noop`).
+Formato `"<intentos>/<segundos>s"`, validado al arrancar. `BOOKING_RATE_LIMIT`
+(`30/minute`) sigue siendo el tope **global en memoria** de C-01 y no se toca. La IP
+es la que resuelve uvicorn (`--proxy-headers` + `FORWARDED_ALLOW_IPS`); la app no
+parsea `X-Forwarded-For`.
+
+### Sin CAPTCHA en v1 (decisión 2026-11-04)
+
+La protección es rate-limit en Redis + anti-enumeración. `BotGuard`
+(`app/modules/booking_public/guard.py`) es el punto de extensión: un futuro
+Turnstile/reCAPTCHA lee su token de `X-Bot-Token` y solo cambia la implementación que
+devuelve `get_bot_guard`, sin tocar el schema ni el router.
+
+### Revisión `c07_booking_public` (C-07)
+
+- `appointment.manage_token_hash` (`bytea`, `ADD COLUMN` nullable: metadata-only),
+  CHECKs (largo 32; turno `online` ⇒ hash) `NOT VALID` → `VALIDATE`, e índice único
+  parcial `uq_appointment_manage_token_hash` `CONCURRENTLY` (regla 11).
+
+⚠️ **El downgrade pierde los hashes de los tokens**: `alembic downgrade
+c13_event_slot` quita la columna y el índice; los links de gestión ya emitidos dejan
+de servir. Deshabilitar `clinic.booking_enabled` corta la superficie pública sin
+redeploy.
+
 ## Seed del tenant inicial
 
 Crea una clínica, un admin con cambio de contraseña obligatorio, el sillón
 "Sillón 1" y un profesional de ejemplo inactivo. Es idempotente por slug y no
-imprime secretos. Se ejecuta desde `backend/`:
+imprime secretos. Con `SEED_BOOKING_DEMO=true` (opcional, C-07) la clínica nueva queda
+con reserva pública habilitada, el profesional activo y una plantilla lunes-viernes
+09:00-13:00 de 30 min (clínica demo / E2E); sin el flag no queda pública. Se ejecuta
+desde `backend/`:
 
 ```bash
 cd backend

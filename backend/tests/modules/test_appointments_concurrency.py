@@ -7,6 +7,7 @@ independientes y confirman de verdad, como dos requests en producción.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -93,6 +94,8 @@ def _booking(
         chair_id=e.chair_id,
         starts_at=starts_at,
         duration_min=None,
+        # C-07: la base exige el hash del token en todo turno online.
+        manage_token_hash=hashlib.sha256(uuid.uuid4().bytes).digest() if online else None,
         **extra,  # type: ignore[arg-type]
     )
 

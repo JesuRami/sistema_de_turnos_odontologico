@@ -39,6 +39,4 @@ async def list_audit(
     if hasta is not None:
         stmt = stmt.where(ev.created_at < hasta)
     filas, siguiente = await paginate_entities(session, stmt, ev.created_at, ev.id, cursor, limit)
-    return AuditPage(
-        items=[AuditEventRead.model_validate(f) for f in filas], next_cursor=siguiente
-    )
+    return AuditPage(items=[AuditEventRead.model_validate(f) for f in filas], next_cursor=siguiente)

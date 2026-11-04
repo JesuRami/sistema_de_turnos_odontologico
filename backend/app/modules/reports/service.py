@@ -86,9 +86,7 @@ class ReportsService:
             raise DomainError(422, "invalid_range")
         if (hasta - desde).days + 1 > MAX_RANGE_DAYS:
             raise DomainError(422, "range_too_large")
-        zona = await self.session.scalar(
-            select(Clinic.timezone).where(Clinic.id == self.clinic_id)
-        )
+        zona = await self.session.scalar(select(Clinic.timezone).where(Clinic.id == self.clinic_id))
         tz = ZoneInfo(zona or "America/Argentina/Buenos_Aires")
         return ReportWindow(
             tz=tz,
@@ -233,9 +231,7 @@ class ReportsService:
             ),
         )
 
-    async def _capacity(
-        self, w: ReportWindow
-    ) -> tuple[dict[uuid.UUID, int], dict[uuid.UUID, int]]:
+    async def _capacity(self, w: ReportWindow) -> tuple[dict[uuid.UUID, int], dict[uuid.UUID, int]]:
         reglas = (
             await self.session.execute(
                 select(ScheduleRule).where(

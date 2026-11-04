@@ -237,7 +237,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ## FASE 2 — Reserva online y gestión del paciente (sin cuenta)
 
 ### [C-07] `booking-publico`
-- **Estado**: `[ ]` implementado (backend + SPA + E2E verdes), pendiente de `/opsx:archive`
+- **Estado**: `[x]` completado
 - **Scope**: Reserva online 24/7 por link público — backend + flujo mobile-first (US-020, Flujo 1)
   - `GET /api/booking/:slug/availability?professional_id&from&to` — huecos = `schedule_rule − block − turnos vigentes − buffers`; solo fecha/hora/profesional, sin datos de otros pacientes (RN-ON-01); anti-enumeración + rate-limit 10 reservas/hora/IP (RN-ON-03; CAPTCHA según pregunta abierta Alta en `10`)
   - `POST /api/booking/:slug/appointments` — exige nombre + contacto + opt-in WhatsApp si hay teléfono (RN-ON-02); normalización E.164 + match por teléfono existente (RN-ON-05); inserta turno `pending` + `manage_token` (opaco 256 bits, hash SHA-256 en DB) en transacción con revalidación de exclusión; carrera → 409 + alternativos cercanos

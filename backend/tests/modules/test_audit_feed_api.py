@@ -110,6 +110,7 @@ async def test_no_expone_datos_del_paciente(
     assert PACIENTE_NOMBRE not in cuerpo
     assert agenda.patient.phone_e164 not in cuerpo  # type: ignore[operator]
 
+
 async def test_no_mezcla_clinicas(
     app_client: httpx.AsyncClient,
     db_session: AsyncSession,

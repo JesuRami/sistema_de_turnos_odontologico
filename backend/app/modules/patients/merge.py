@@ -28,6 +28,7 @@ from app.models import (
     Patient,
     PatientMerge,
 )
+from app.modules.appointments.audit import slot_snapshot
 from app.modules.patients.schemas import PatientMergeRequest, PatientMergeResult
 
 # Contacto que el conservado hereda si lo tiene vacío. `whatsapp_opt_in` no: el
@@ -115,6 +116,7 @@ async def merge_patients(
                     "reason": "patient_merge",
                     "merge_id": str(registro.id),
                 },
+                **slot_snapshot(turno),
             )
             for turno in turnos
         ]

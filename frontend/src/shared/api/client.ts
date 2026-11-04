@@ -23,6 +23,8 @@ export interface RequestOptions {
   auth?: boolean;
   /** Token explícito (uso interno de la sesión): se manda tal cual y no renueva. */
   accessToken?: string;
+  /** `"blob"` para descargas (CSV, ZIP); por defecto el cuerpo es JSON. */
+  responseType?: "json" | "blob";
 }
 
 export interface ApiClientDeps {
@@ -108,7 +110,9 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 async function send(path: string, options: RequestOptions, token: string | null): Promise<Response> {
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = {
+    Accept: options.responseType === "blob" ? "*/*" : "application/json"
+  };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
@@ -127,9 +131,12 @@ async function send(path: string, options: RequestOptions, token: string | null)
   }
 }
 
-async function parse<T>(response: Response): Promise<T> {
+async function parse<T>(response: Response, responseType: "json" | "blob" = "json"): Promise<T> {
   if (response.status === 204) {
     return undefined as T;
+  }
+  if (responseType === "blob") {
+    return (await response.blob()) as T;
   }
   const cuerpo: unknown = await response.json();
   return cuerpo as T;
@@ -139,14 +146,14 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (options.accessToken !== undefined) {
     const directa = await send(path, options, options.accessToken);
     if (directa.ok) {
-      return parse<T>(directa);
+      return parse<T>(directa, options.responseType);
     }
     throw await toApiError(directa);
   }
   const autenticado = options.auth !== false;
   const primera = await send(path, options, autenticado ? deps.getAccess() : null);
   if (primera.ok) {
-    return parse<T>(primera);
+    return parse<T>(primera, options.responseType);
   }
   if (primera.status !== 401 || !autenticado) {
     throw await toApiError(primera);
@@ -164,7 +171,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   }
   const segunda = await send(path, options, nuevo);
   if (segunda.ok) {
-    return parse<T>(segunda);
+    return parse<T>(segunda, options.responseType);
   }
   throw await toApiError(segunda);
 }

@@ -402,3 +402,78 @@ def test_cli_alembic_desde_la_raiz_del_repo(temp_database: str) -> None:
         )
         assert resultado.returncode == 0, resultado.stderr
     assert _tablas(temp_database) == TABLAS
+
+
+def test_upgrade_crea_la_instantanea_de_eventos_de_c13(temp_database: str) -> None:
+    """WHEN upgrade head THEN existen columnas, FKs validadas, índice válido y el enum."""
+    command.upgrade(alembic_config(), "head")
+
+    columnas = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'appointment_event'",
+            temp_database,
+        )
+    }
+    assert {"slot_starts_at", "slot_ends_at", "professional_id", "chair_id"} <= columnas
+    indice = fetch_rows(
+        "SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid "
+        "WHERE c.relname = 'ix_appointment_event_clinic_id_slot_starts_at'",
+        temp_database,
+    )
+    assert [bool(r[0]) for r in indice] == [True]
+    restricciones = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'appointment_event'::regclass "
+            "AND convalidated",
+            temp_database,
+        )
+    }
+    assert {
+        "fk_appointment_event_clinic_id_professional_id_professional",
+        "fk_appointment_event_clinic_id_chair_id_chair",
+        "ck_appointment_event_slot_coherent",
+    } <= restricciones
+    etiquetas = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+            "WHERE t.typname = 'auth_event_type'",
+            temp_database,
+        )
+    }
+    assert "data_exported" in etiquetas
+    triggers = fetch_rows(
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'appointment_event'::regclass "
+        "AND NOT tgisinternal",
+        temp_database,
+    )
+    assert {str(r[0]) for r in triggers} == {"trg_appointment_event_no_mutate"}
+
+
+def test_downgrade_a_c06_quita_la_instantanea_y_permite_volver_a_subir(temp_database: str) -> None:
+    """WHEN downgrade c06 THEN no quedan columnas ni índice, y un nuevo upgrade funciona."""
+    cfg = alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "c06_patient_merge")
+
+    columnas = {
+        str(r[0])
+        for r in fetch_rows(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'appointment_event'",
+            temp_database,
+        )
+    }
+    assert columnas.isdisjoint({"slot_starts_at", "slot_ends_at", "professional_id", "chair_id"})
+    assert (
+        fetch_rows(
+            "SELECT 1 FROM pg_class "
+            "WHERE relname = 'ix_appointment_event_clinic_id_slot_starts_at'",
+            temp_database,
+        )
+        == []
+    )
+    command.upgrade(cfg, "head")

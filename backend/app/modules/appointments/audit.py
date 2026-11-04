@@ -58,6 +58,16 @@ class Actor:
         return self.roles == {UserRole.ODONTOLOGO}
 
 
+def slot_snapshot(appointment: Appointment) -> dict[str, Any]:
+    """Columnas de instantánea de `appointment_event` (C-13): solo ids y fechas, sin PII."""
+    return {
+        "slot_starts_at": appointment.starts_at,
+        "slot_ends_at": appointment.ends_at,
+        "professional_id": appointment.professional_id,
+        "chair_id": appointment.chair_id,
+    }
+
+
 async def record_event(
     session: AsyncSession,
     actor: Actor,
@@ -79,6 +89,7 @@ async def record_event(
             from_status=from_status,
             to_status=to_status,
             payload=to_json(payload),
+            **slot_snapshot(appointment),
         )
     )
     await session.flush()

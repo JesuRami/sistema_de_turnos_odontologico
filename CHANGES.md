@@ -301,6 +301,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - "SÍ" confirma (misma transición que el link, idempotente); "NO"/reprogramar → link de gestión o clínica según ventana; "STOP"/BAJA bloquea el canal de inmediato con confirmación (RN-WA-01/03)
   - Opt-in en reserva o cargado por recepción; cada cambio de consentimiento auditado con fuente
   - Proceso operativo de alta de plantillas por clínica + decisión número propio vs compartido (pregunta abierta Alta en `10`) antes del piloto
+  - Reporte mensual WhatsApp por clínica (diferido de C-13): enviados/entregados/leídos por paso + costo atribuido (RN-WA-05, archivo `11` §4), sobre `reminder_job`/`delivery_event`, solo admin, con CSV
 - **Dependencias**: C-08, C-09
 - **Governance**: ALTO
 - **Leer antes**:
@@ -337,6 +338,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - Carrera doble-aceptación: la primera gana, la segunda vuelve a cola prioritaria con alternativas
   - Migración 006: `waiting_list_entry`, `waitlist_offer`
   - Tests: FIFO con filtro, expiración y rotación, aceptar fuera de expiración rechazado
+  - Reporte de conversión lista de espera → turno (diferido de C-13), solo admin, con CSV, sobre eventos (US-050)
 - **Dependencias**: C-05, C-08, C-10
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -348,19 +350,19 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-13] `reportes-admin-export`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[ ]` implementado en el árbol de trabajo, pendiente de verificación local y archivo (`openspec/changes/c-13-reportes-admin-export`)
 - **Scope**: Reportes mínimos + administración con control y sin lock-in (US-050, US-051)
-  - 4 reportes con rango de fechas + CSV: ocupación por profesional/sillón, ausentismo (`no_show` vs cancelación tardía, RN-ST-04), cancelaciones por motivo (RN-CX-04), conversión lista de espera → turno; calculados sobre `appointment_event`, nunca sobre estados mutados (US-050 CA-3)
-  - Auditoría por turno (actor, antes/después, timestamp), inmutable, visible solo admin (RBAC)
-  - Exportación completa (turnos, pacientes operativos, eventos) en CSV/JSON con un clic (US-051 CA-3)
-  - Reporte mensual WhatsApp por clínica: enviados/entregados/leídos por paso + costo atribuido (base del pricing — RN-WA-05, archivo `11` §4)
+  - 3 reportes con rango de fechas + CSV: ocupación por profesional/sillón, ausentismo (`no_show` vs cancelación tardía, RN-ST-04), cancelaciones por motivo (RN-CX-04); calculados sobre `appointment_event`, nunca sobre estados mutados (US-050 CA-3)
+  - Auditoría de turnos de la clínica (actor, antes/después, timestamp), inmutable, visible solo admin (RBAC); el historial por turno de C-05 se mantiene
+  - Exportación completa (turnos, pacientes operativos, eventos) en CSV/JSON con un clic (US-051 CA-3), auditada en `auth_event` (`data_exported`)
+  - Instantánea del horario y recursos en cada `appointment_event` nuevo (migración `c13_event_slot`)
+  - **Diferido** (necesita tablas que aún no existen): reporte mensual WhatsApp por clínica → pasa a C-10 (necesita `reminder_job`/`delivery_event` de C-09); conversión lista de espera → turno → pasa a C-12 (necesita `waiting_list_entry` y origen `waitlist`)
 - **Dependencias**: C-03, C-05
 - **Governance**: ALTO
 - **Leer antes**:
   - `knowledge-base/06_funcionalidades.md` §Épica 6 (US-050, US-051)
   - `knowledge-base/04_modelo_de_datos.md` §appointment_event
   - `knowledge-base/03_actores_y_roles.md` §RBAC (auditoría/exportación solo admin)
-  - `knowledge-base/11_whatsapp_y_recordatorios.md` §4. Costos y transparencia
 
 ---
 

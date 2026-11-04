@@ -219,3 +219,83 @@ export interface PatientMergeResult {
   appointment_ids: Uuid[];
   filled_fields: string[];
 }
+
+// ---------------------------------------------------------------- C-13 reportes
+
+export type ReportGroupBy = "professional" | "chair";
+
+export interface OccupancyRow {
+  resource_id: Uuid;
+  resource_name: string;
+  appointments: number;
+  overbookings: number;
+  booked_min: number;
+  capacity_min: number;
+  occupancy_pct: number;
+}
+
+export interface OccupancyReport {
+  group_by: ReportGroupBy;
+  from_date: string;
+  to_date: string;
+  capacity_basis: "current_schedule";
+  rows: OccupancyRow[];
+  totals: Omit<OccupancyRow, "resource_id" | "resource_name">;
+}
+
+export interface AbsenteeismRow {
+  professional_id: Uuid;
+  professional_name: string;
+  present: number;
+  absent: number;
+  no_show: number;
+  late_cancellations: number;
+  outcomes: number;
+  no_show_rate: number;
+  absent_rate: number;
+  late_cancellation_rate: number;
+}
+
+export interface AbsenteeismReport {
+  from_date: string;
+  to_date: string;
+  rows: AbsenteeismRow[];
+  totals: Omit<AbsenteeismRow, "professional_id" | "professional_name">;
+}
+
+export interface CancellationRow {
+  reason: string;
+  total: number;
+  late: number;
+  in_window: number;
+}
+
+export interface CancellationsReport {
+  from_date: string;
+  to_date: string;
+  rows: CancellationRow[];
+  total: number;
+}
+
+export type AppointmentEventKind =
+  | "created"
+  | "overbooking_created"
+  | "confirmed"
+  | "rescheduled"
+  | "cancelled"
+  | "present"
+  | "absent"
+  | "no_show"
+  | "updated";
+
+export interface AuditEvent {
+  id: Uuid;
+  appointment_id: Uuid;
+  event: AppointmentEventKind;
+  actor_type: "user" | "system" | "patient_token";
+  actor_user_id: Uuid | null;
+  from_status: AppointmentStatus | null;
+  to_status: AppointmentStatus | null;
+  payload: Record<string, unknown>;
+  created_at: IsoDateTime;
+}

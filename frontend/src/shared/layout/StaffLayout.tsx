@@ -18,7 +18,8 @@ export const NAV: readonly NavItem[] = [
   { to: "/politicas", label: "Políticas", roles: ["admin", "recepcion"] },
   { to: "/admin/profesionales", label: "Profesionales", roles: ["admin"] },
   { to: "/admin/sillones", label: "Sillones", roles: ["admin"] },
-  { to: "/admin/horarios", label: "Horarios", roles: ["admin"] }
+  { to: "/admin/horarios", label: "Horarios", roles: ["admin"] },
+  { to: "/admin/reportes", label: "Reportes", roles: ["admin"] }
 ];
 
 const ROL: Record<UserRole, string> = {

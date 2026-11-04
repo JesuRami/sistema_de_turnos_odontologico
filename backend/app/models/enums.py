@@ -23,6 +23,7 @@ class AuthEventType(enum.StrEnum):
     USER_UPDATED = "user_updated"
     USER_DEACTIVATED = "user_deactivated"
     ROLE_CHANGED = "role_changed"
+    DATA_EXPORTED = "data_exported"
 
 
 class BlockReason(enum.StrEnum):

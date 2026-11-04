@@ -6,6 +6,7 @@ import SchedulesAdmin from "./features/admin/SchedulesAdmin";
 import AgendaPage from "./features/agenda/AgendaPage";
 import BlocksPage from "./features/blocks/BlocksPage";
 import MergePatientsPage from "./features/patients/MergePatientsPage";
+import ReportsPage from "./features/reports/ReportsPage";
 import BookingPage from "./pages/BookingPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import LoginPage from "./pages/LoginPage";
@@ -63,6 +64,14 @@ function App(): JSX.Element {
             element={
               <RequireRole roles={["admin"]}>
                 <SchedulesAdmin />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/admin/reportes"
+            element={
+              <RequireRole roles={["admin"]}>
+                <ReportsPage />
               </RequireRole>
             }
           />

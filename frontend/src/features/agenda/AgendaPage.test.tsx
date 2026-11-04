@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   agendaHandlers,
   appointment,
@@ -196,5 +196,64 @@ describe("AgendaPage", () => {
     server.use(...agendaHandlers());
     await abrir("recepcion");
     expect(await screen.findByRole("button", { name: "Nuevo turno" })).toBeInTheDocument();
+  });
+
+  describe("tiempo real por polling (C-07, D13)", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      Reflect.deleteProperty(document, "visibilityState");
+    });
+
+    function pendientesEnLaRed(): { pedidos: () => number } {
+      let pedidos = 0;
+      server.use(
+        http.get("/api/appointments", () => {
+          pedidos += 1;
+          const items =
+            pedidos === 1
+              ? []
+              : [
+                  appointment({
+                    id: "appt-online",
+                    status: "pending",
+                    origin: "online",
+                    patient: { id: "pat-9", full_name: "Online Ficticia", phone_e164: null, email: null }
+                  })
+                ];
+          return HttpResponse.json({ items, next_cursor: null });
+        }),
+        ...agendaHandlers()
+      );
+      return { pedidos: () => pedidos };
+    }
+
+    it("con la pestaña visible vuelve a pedir el rango a los 30 s y muestra el turno pendiente nuevo", async () => {
+      const red = pendientesEnLaRed();
+      const sesion = await loggedSession(makeUser("recepcion"));
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      renderWithProviders(<AgendaPage />, { session: sesion, now: () => AHORA });
+      await waitFor(() => expect(red.pedidos()).toBe(1));
+      expect(screen.queryByRole("button", { name: /Online Ficticia/ })).not.toBeInTheDocument();
+
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(red.pedidos()).toBe(1);
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      expect(await screen.findByRole("button", { name: /Online Ficticia/ })).toBeInTheDocument();
+      expect(red.pedidos()).toBe(2);
+    });
+
+    it("con la pestaña oculta no vuelve a pedir", async () => {
+      const red = pendientesEnLaRed();
+      const sesion = await loggedSession(makeUser("recepcion"));
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      renderWithProviders(<AgendaPage />, { session: sesion, now: () => AHORA });
+      await waitFor(() => expect(red.pedidos()).toBe(1));
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+
+      await vi.advanceTimersByTimeAsync(65_000);
+
+      expect(red.pedidos()).toBe(1);
+    });
   });
 });

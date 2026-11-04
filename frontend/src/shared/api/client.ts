@@ -72,7 +72,7 @@ export function resetApiConfig(): void {
   deps = SIN_SESION;
 }
 
-function buildUrl(path: string, query?: Query): string {
+export function buildUrl(path: string, query?: Query): string {
   const base =
     API_ORIGIN || (typeof window !== "undefined" ? window.location.origin : "http://localhost");
   const url = new URL(path, base);
@@ -91,7 +91,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function toApiError(response: Response): Promise<ApiError> {
+export async function toApiError(response: Response): Promise<ApiError> {
   let cuerpo: unknown = null;
   try {
     cuerpo = await response.json();

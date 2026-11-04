@@ -189,54 +189,54 @@
 
 ## 12. Frontend `/b/:slug` (D12, `web/public-booking`)
 
-- [ ] 12.1 RED — Vitest + Testing Library + MSW en `features/booking`: catálogo →
+- [x] 12.1 RED — Vitest + Testing Library + MSW en `features/booking`: catálogo →
   día → hora → datos → confirmación en ≤ 4 pasos; un solo profesional saltea el
   primer paso; volver atrás conserva selección; casilla de WhatsApp aparece sin
   marcar al escribir teléfono; no envía sin contacto ni privacidad; horarios en
   la zona de la clínica con el navegador en UTC. Verifica: tests fallan.
-- [ ] 12.2 GREEN — `api.ts` (`credentials: "omit"`, tipos de borde sin `any`),
+- [x] 12.2 GREEN — `api.ts` (`credentials: "omit"`, tipos de borde sin `any`),
   `useBookingFlow`, componentes de los pasos y `BookingPage`. Verifica: 12.1 verde.
-- [ ] 12.3 RED — Errores y confirmación: `409` muestra alternativos y elegir uno
+- [x] 12.3 RED — Errores y confirmación: `409` muestra alternativos y elegir uno
   reenvía con los mismos datos; `422` marca el campo; `429` con `Retry-After: 600`
   dice "10 minutos"; `404` informa link no disponible; `503`; aviso
   `phone_invalid_email_channel`; confirmación con link de gestión y "Copiar
   link"; tras reservar, `localStorage`/`sessionStorage` vacíos de token y datos.
   Verifica: tests fallan.
-- [ ] 12.4 GREEN — `BookingError`, `Confirmation` y copy según
+- [x] 12.4 GREEN — `BookingError`, `Confirmation` y copy según
   `frontend-design`. Verifica: 12.3 verde.
 
 ## 13. Agenda de recepción (D13, `web/agenda-board`)
 
-- [ ] 13.1 RED — Test de la agenda (fake timers + MSW): con la pestaña visible
+- [x] 13.1 RED — Test de la agenda (fake timers + MSW): con la pestaña visible
   vuelve a pedir el rango a los 30 s y muestra un turno `pending` nuevo; con
   `document.visibilityState="hidden"` no pide. Verifica: test falla.
-- [ ] 13.2 GREEN — `refetchInterval: 30_000` en la query del rango. Verifica:
+- [x] 13.2 GREEN — `refetchInterval: 30_000` en la query del rango. Verifica:
   13.1 verde y la suite de C-06 sigue verde.
 
 ## 14. E2E crítico (Playwright)
 
-- [ ] 14.1 RED — `frontend/e2e/booking.spec.ts` contra el stack real (setup por
+- [x] 14.1 RED — `frontend/e2e/booking.spec.ts` contra el stack real (setup por
   API del global-setup, datos sintéticos): en viewport 360×740 sin scroll
   horizontal y botones ≥ 44 px, reservar un hueco en ≤ 4 pasos y ver la
   confirmación con link; recepción logueada en otra página ve el turno pendiente
   en ≤ 30 s sin recargar; una segunda reserva del mismo hueco desde otro contexto
   ve "Ese horario se acaba de ocupar" con alternativos. Verifica: el spec falla
   antes de 12–13 o, si se escribe después, se muestra rojo revirtiendo la ruta.
-- [ ] 14.2 GREEN — Ajustes que surjan del E2E. Verifica: `npm run e2e` verde.
+- [x] 14.2 GREEN — Ajustes que surjan del E2E. Verifica: `npm run e2e` verde.
 
 ## 15. KB y cierre
 
-- [ ] 15.1 `knowledge-base/10_preguntas_abiertas.md`: pregunta Alta de
+- [x] 15.1 `knowledge-base/10_preguntas_abiertas.md`: pregunta Alta de
   CAPTCHA/anti-bot marcada resuelta (2026-11-04: sin CAPTCHA en v1, rate-limit
   Redis + anti-enumeración + `BotGuard`). Verifica: diff del archivo. (Hecho en
   el propose; verificar que sigue vigente.)
-- [ ] 15.2 Gate backend: `alembic upgrade head → downgrade -1 → upgrade head`,
+- [x] 15.2 Gate backend: `alembic upgrade head → downgrade -1 → upgrade head`,
   `pytest -q` (Postgres 15 + Redis 7), `ruff check backend`, `black --check
   backend`, `mypy backend`. Verifica: todo verde, evidencia en la tabla final.
-- [ ] 15.3 Gate frontend: `tsc --noEmit` (estricto, sin `any`), `eslint`,
+- [x] 15.3 Gate frontend: `tsc --noEmit` (estricto, sin `any`), `eslint`,
   `vitest run`, `npm run e2e`. Verifica: todo verde, evidencia en la tabla final.
-- [ ] 15.4 `openspec validate c-07-booking-publico --strict`. Verifica: válido.
-- [ ] 15.5 `CHANGES.md`: notas de cierre de C-07 y contratos diferidos (jobs y
+- [x] 15.4 `openspec validate c-07-booking-publico --strict`. Verifica: válido.
+- [x] 15.5 `CHANGES.md`: notas de cierre de C-07 y contratos diferidos (jobs y
   mensaje de alta → C-09/C-10 vía `book()`; uso, TTL y rotación del token → C-08;
   historial de consentimiento → C-09/C-10; toggle de `clinic.booking_enabled`
   desde la UI de admin → sin change asignado). Verifica: diff de CHANGES.md.
@@ -286,3 +286,29 @@ downgrade -1 → upgrade head` limpio sobre la DB compartida; test de drift mode
 Notas: fallas esporádicas de conexión (`TimeoutError` de asyncpg vía `host.docker.internal`) en
 tests de carrera bajo carga, ajenas a la lógica; quitar el filtro `Professional.clinic_id` no rompe
 tests porque el filtro de reglas por clínica ya aísla (defensa en profundidad).
+
+### Tramo 2 (grupos 12-15, frontend + E2E + cierre) — 2026-11-04
+
+Entorno: vitest y Playwright (Chromium) nativos en Windows; API en contenedor `python:3.12-slim`
+contra `turnos-test-pg` (DB aparte `turnos_e2e`) y Redis (`REDIS_AUTH_DB=14`), con la clínica sembrada
+con `SEED_BOOKING_DEMO=true`; Vite en dev (`API_PROXY_TARGET=http://127.0.0.1:8000`). Sin builds.
+
+**Finales**: backend `864 passed, 2 failed` (la falla de entorno `localhost:6379` del tramo 1 y un
+`TimeoutError` de conexión a Postgres en la fixture de un test de carrera, que aislado pasó 22/22 y
+en el tramo 1 20/20); `ruff`, `black --check`, `mypy` (211 archivos) limpios; `tsc --noEmit` limpio;
+vitest `22 files / 158 passed` (baseline 129); Playwright `5 passed, 2 skipped` (los 2 stubs `smoke`
+previos); `openspec validate c-07-booking-publico --strict` válido. El proyecto no tiene `eslint`
+(15.3 se cumple con `tsc` estricto + `grep` de `any` sin resultados).
+
+| Tarea | Test | Capa | Red de seguridad | RED | GREEN | Triangulación |
+|---|---|---|---|---|---|---|
+| 13.1/13.2 | `AgendaPage.test.tsx` (polling) | Componente (fake timers + MSW) | 9/9 de la agenda | 1 failed (visible no repite) | 11/11; agenda 43/43 ×3 | visible a los 30 s (no a los 29) con turno `pending` nuevo; oculta no pide en 65 s |
+| 12.1/12.2 | `useBookingFlow.test.ts`, `BookingPage.test.tsx` | Unit + componente | 129 vitest | 11 failed (sin componentes) | 5 + 11 passed | 4 pasos, un profesional saltea, zona de la clínica, volver conserva, casilla WhatsApp, sin contacto/privacidad/opt-in, solo email, ventanas de 14 días, `credentials: omit` |
+| 12.3/12.4 | `BookingErrors.test.tsx` | Componente | idem | escrito antes de los componentes (falla de import) | 11 passed | 409 con alternativo (reenvío con mismos datos) y sin alternativos, 422 ×3 campos, 429 «10 minutos», 404, 503, aviso de teléfono, link + copiar + storage vacío |
+| 14.1/14.2 | `e2e/booking.spec.ts` | E2E real | 2 specs previos | 3 failed al quitar la ruta `/b/:slug` | 3 passed (5 con los previos) | mobile 360×740 sin scroll y botones ≥ 44 px, agenda ≤ 30 s sin recargar, carrera → 409 + alternativo |
+| 15.1-15.5 | KB, gates, `openspec validate`, `CHANGES.md` | docs | — | — | verificados | KB ya marcada resuelta; notas de cierre y contratos diferidos en `CHANGES.md` |
+
+Hallazgo del E2E (invisible en vitest): el `AuthProvider` ejecuta `queryClient.clear()` cuando el visitante
+resulta anónimo, lo que dejaba el catálogo en vuelo colgado en «Cargando…». Se resolvió dándole a la reserva
+pública su propio `QueryClient` (no comparte caché con el personal). Otros: en Windows `localhost` del proxy
+de Vite se cuelga por IPv6 (usar `E2E_API=http://127.0.0.1:8000`).

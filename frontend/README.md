@@ -2,7 +2,7 @@
 
 React 18 + TypeScript estricto (sin `any`, regla 5) + Vite 5 + Tailwind 3 +
 TanStack Query. La SPA es la de la clínica (admin, recepción, odontólogo); las
-rutas públicas del paciente (`/b/:slug`, `/g/:token`) llegan con C-07/C-08.
+ruta pública de reserva `/b/:slug` (C-07); la gestión por token `/g/:token` llega con C-08.
 
 ## Rutas
 
@@ -14,6 +14,11 @@ rutas públicas del paciente (`/b/:slug`, `/g/:token`) llegan con C-07/C-08.
 | `/politicas` | admin (edita), recepción (solo lectura) |
 | `/pacientes/fusionar` | admin, recepción |
 | `/admin/profesionales`, `/admin/sillones`, `/admin/horarios` | admin |
+| `/b/:slug` reserva pública (profesional → día → hora → datos) | anónima: sin sesión ni cookies, `QueryClient` propio |
+
+La agenda de recepción se refresca sola cada 30 s (`refetchInterval`; con la pestaña oculta no
+refresca): una reserva online aparece sin recargar. La reserva pública guarda todo en memoria
+(nunca en `localStorage`/`sessionStorage`) y muestra las horas en la zona de la clínica.
 
 Un rol sin permiso ve "No tenés permiso para esta sección". La UI oculta lo que
 el rol no puede hacer, pero la autorización la sigue haciendo la API.
@@ -58,13 +63,21 @@ solo por entorno (regla 6), todas sintéticas:
 | `E2E_ADMIN_EMAIL` | email del admin del seed (`SEED_ADMIN_EMAIL`) |
 | `E2E_ADMIN_PASSWORD` | su clave provisoria (`SEED_ADMIN_PASSWORD`) |
 | `E2E_PASSWORD` | clave definitiva que el E2E fija para el admin y la recepcionista |
-| `E2E_API` / `E2E_BASE_URL` | opcionales: API y URL de la SPA |
+| `E2E_API` / `E2E_BASE_URL` | opcionales: API y URL de la SPA (usar `http://127.0.0.1:8000` en Windows: `localhost` resuelve a IPv6 y el proxy de Vite se cuelga) |
+| `E2E_CLINIC_SLUG` | opcional: slug de la clínica con reserva habilitada (default `clinica-demo`) |
+
+La clínica del seed debe tener la reserva pública habilitada: sembrarla con `SEED_BOOKING_DEMO=true`
+y, en la API de pruebas, subir `PUBLIC_BOOKING_IP_RATE_LIMIT` (el default de 10 reservas/h/IP se agota
+con corridas repetidas) y `BOOKING_RATE_LIMIT` (tope global en memoria).
 
 El setup global crea por API recursos, paciente y una recepcionista propios de la
 corrida (sufijo único) y 500 turnos en la semana siguiente. Specs:
 
 - `e2e/agenda.spec.ts`: primer ingreso con cambio de clave → turno → `409` con
   alternativo → presente.
+- `e2e/booking.spec.ts` (C-07): reserva en 4 pasos a 360×740 sin scroll horizontal y con botones ≥ 44 px,
+  la agenda de recepción muestra la reserva pendiente en ≤ 30 s sin recargar y la carrera por el mismo
+  hueco muestra "Ese horario se acaba de ocupar" con alternativos.
 - `e2e/agenda-perf.spec.ts`: semana con 500 turnos visible en < 2 s (US-010 CA-3).
 
 La API de pruebas debe tener límites de login holgados (`AUTH_*_RATE_LIMIT`).

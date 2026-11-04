@@ -76,6 +76,12 @@ export function usePolicies(enabled = true): UseQueryResult<ClinicPolicies> {
   });
 }
 
+/**
+ * Intervalo de refresco de la agenda (C-07, D13): una reserva online aparece sin recargar.
+ * Con la pestaña oculta TanStack no refresca (`refetchIntervalInBackground` queda en false).
+ */
+export const AGENDA_REFETCH_MS = 30_000;
+
 export function useAppointments(range: { from: Date; to: Date } | null): UseQueryResult<Appointment[]> {
   return useQuery({
     queryKey: [...queryKeys.appointments, range?.from.toISOString(), range?.to.toISOString()],
@@ -85,7 +91,8 @@ export function useAppointments(range: { from: Date; to: Date } | null): UseQuer
         { from: range?.from.toISOString(), to: range?.to.toISOString() },
         500
       ),
-    enabled: range !== null
+    enabled: range !== null,
+    refetchInterval: AGENDA_REFETCH_MS
   });
 }
 

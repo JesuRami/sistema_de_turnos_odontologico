@@ -22,6 +22,11 @@ export function e2eEnv(): { baseURL: string; adminEmail: string; adminProvisiona
   };
 }
 
+/** Slug de la clínica del seed con reserva pública habilitada (`SEED_BOOKING_DEMO=true`). */
+export function clinicSlug(): string {
+  return process.env.E2E_CLINIC_SLUG ?? "clinica-demo";
+}
+
 export const STATE_PATH = fileURLToPath(new URL("./.state.json", import.meta.url));
 
 export interface E2EState {

@@ -237,7 +237,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ## FASE 2 — Reserva online y gestión del paciente (sin cuenta)
 
 ### [C-07] `booking-publico`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[ ]` implementado (backend + SPA + E2E verdes), pendiente de `/opsx:archive`
 - **Scope**: Reserva online 24/7 por link público — backend + flujo mobile-first (US-020, Flujo 1)
   - `GET /api/booking/:slug/availability?professional_id&from&to` — huecos = `schedule_rule − block − turnos vigentes − buffers`; solo fecha/hora/profesional, sin datos de otros pacientes (RN-ON-01); anti-enumeración + rate-limit 10 reservas/hora/IP (RN-ON-03; CAPTCHA según pregunta abierta Alta en `10`)
   - `POST /api/booking/:slug/appointments` — exige nombre + contacto + opt-in WhatsApp si hay teléfono (RN-ON-02); normalización E.164 + match por teléfono existente (RN-ON-05); inserta turno `pending` + `manage_token` (opaco 256 bits, hash SHA-256 en DB) en transacción con revalidación de exclusión; carrera → 409 + alternativos cercanos
@@ -252,6 +252,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - `knowledge-base/06_funcionalidades.md` §Épica 3 (US-020)
   - `knowledge-base/07_flujos_principales.md` §Flujo 1
   - `knowledge-base/10_preguntas_abiertas.md` §CAPTCHA/anti-bot, §rotación de manage_token
+- **Notas de cierre**: migración `c07_booking_public` (`appointment.manage_token_hash bytea`, CHECKs `NOT VALID → VALIDATE`, único parcial `CONCURRENTLY`; solo el SHA-256 persiste). Endpoints anónimos `GET /api/booking/{slug}`, `…/availability` y `POST …/appointments` (el servidor elige el sillón; escritura solo por `AppointmentsService.book(origin=online)`, actor `patient_token`). Sin CAPTCHA en v1 (decisión 2026-11-04): cupos Redis por IP/slug/lecturas, falla cerrada `503 booking_unavailable` y `BotGuard` conectable. `409` público con alternativos de todos los sillones y sin `conflicts`/`chair_id`. Extraídos `consume()` (rate-limit) y `client_ip()` compartidos con auth. Seed demo opt-in `SEED_BOOKING_DEMO=true`. SPA `/b/:slug` en ≤ 4 pasos con `QueryClient` propio (el `AuthProvider` hace `queryClient.clear()` al resultar anónimo el visitante y colgaba el catálogo), agenda de recepción con `refetchInterval` de 30 s. E2E mobile 360 px, agenda en ≤ 30 s y carrera por el mismo hueco. **Diferido con contrato**: `reminder_job` y mensaje de alta → C-09/C-10 (enganchan en `AppointmentsService.book`); uso, TTL (72 h post-turno) y rotación del token → C-08; historial de consentimiento (tabla `consent`) → C-09/C-10; texto legal de privacidad definitivo (hoy `PRIVACY_POLICY_VERSION` placeholder) → asesor legal; alta del toggle de `clinic.booking_enabled` desde la UI de admin → sin change asignado (hoy solo seed/DB); SSE/WebSocket en lugar de polling → cuando haya otra necesidad de push.
 
 ---
 

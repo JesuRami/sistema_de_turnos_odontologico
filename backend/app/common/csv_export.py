@@ -50,7 +50,7 @@ def to_cell(value: Any) -> str | int | float:
         return neutralize(json.dumps(valor, ensure_ascii=False, sort_keys=True))
     if isinstance(valor, str):
         return neutralize(valor)
-    return valor  # int | float
+    return valor  # type: ignore[no-any-return]
 
 
 def csv_text(headers: Sequence[str], rows: Iterable[Sequence[Any]], *, header: bool = True) -> str:

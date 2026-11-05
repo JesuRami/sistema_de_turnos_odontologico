@@ -59,6 +59,11 @@ class SeedConfig:
     admin_email: str
     admin_password: str
     booking_demo: bool = False
+    demo_users: bool = False
+    recepcion_email: str = "recepcion@example.com"
+    recepcion_password: str | None = None
+    odontologo_email: str = "odontologo@example.com"
+    odontologo_password: str | None = None
 
     def __repr__(self) -> str:
         return f"SeedConfig(clinic_slug={self.clinic_slug!r})"
@@ -76,6 +81,13 @@ def read_seed_config(environ: Mapping[str, str]) -> SeedConfig:
         admin_email=values["SEED_ADMIN_EMAIL"],
         admin_password=values["SEED_ADMIN_PASSWORD"],
         booking_demo=environ.get("SEED_BOOKING_DEMO", "").strip().lower() in _TRUTHY,
+        demo_users=environ.get("SEED_DEMO_USERS", "").strip().lower() in _TRUTHY,
+        recepcion_email=environ.get("SEED_RECEPCION_EMAIL", "recepcion@example.com").strip()
+        or "recepcion@example.com",
+        recepcion_password=environ.get("SEED_RECEPCION_PASSWORD", "").strip() or None,
+        odontologo_email=environ.get("SEED_ODONTOLOGO_EMAIL", "odontologo@example.com").strip()
+        or "odontologo@example.com",
+        odontologo_password=environ.get("SEED_ODONTOLOGO_PASSWORD", "").strip() or None,
     )
 
 
@@ -109,6 +121,7 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
         )
         .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
     )
+    professional: Professional | None = None
     if created_id is not None:
         chair = Chair(clinic_id=clinic_id, name=SAMPLE_CHAIR_NAME, active=True)
         professional = Professional(
@@ -118,7 +131,51 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
         await session.flush()
         if config.booking_demo:
             await _enable_booking_demo(session, clinic_id, chair, professional)
+
+    if config.demo_users:
+        prof_id = (
+            professional.id
+            if professional is not None
+            else await session.scalar(
+                select(Professional.id).where(Professional.clinic_id == clinic_id).limit(1)
+            )
+        )
+        await _seed_demo_staff(session, clinic_id, prof_id, config)
+
     return created_id is not None
+
+
+async def _seed_demo_staff(
+    session: AsyncSession, clinic_id: object, professional_id: object | None, config: SeedConfig
+) -> None:
+    """Siembra usuarios de prueba para recepción y odontólogo (solo datos sintéticos)."""
+    recepcion_pwd = config.recepcion_password or config.admin_password
+    odontologo_pwd = config.odontologo_password or config.admin_password
+
+    await session.execute(
+        pg_insert(User)
+        .values(
+            clinic_id=clinic_id,
+            email=config.recepcion_email.strip().lower(),
+            password_hash=hash_password(recepcion_pwd),
+            role=UserRole.RECEPCION,
+            must_change_password=False,
+        )
+        .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
+    )
+    if professional_id is not None:
+        await session.execute(
+            pg_insert(User)
+            .values(
+                clinic_id=clinic_id,
+                email=config.odontologo_email.strip().lower(),
+                password_hash=hash_password(odontologo_pwd),
+                role=UserRole.ODONTOLOGO,
+                professional_id=professional_id,
+                must_change_password=False,
+            )
+            .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
+        )
 
 
 async def _enable_booking_demo(
@@ -168,6 +225,8 @@ def main() -> int:
     created = asyncio.run(run_seed(database_url, config))
     estado = "creada" if created else "ya existía (sin cambios)"
     print(f"Seed completo: clínica '{config.clinic_slug}' {estado}.")
+    if config.demo_users:
+        print("  Usuarios demo activos para todos los roles (admin, recepcion, odontologo).")
     return 0
 
 

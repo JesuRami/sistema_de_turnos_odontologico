@@ -352,7 +352,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-13] `reportes-admin-export`
-- **Estado**: `[ ]` implementado en el árbol de trabajo, pendiente de verificación local y archivo (`openspec/changes/c-13-reportes-admin-export`)
+- **Estado**: `[x]` archivado (2026-11-05 → `openspec/changes/archive/2026-11-05-c-13-reportes-admin-export/`)
 - **Scope**: Reportes mínimos + administración con control y sin lock-in (US-050, US-051)
   - 3 reportes con rango de fechas + CSV: ocupación por profesional/sillón, ausentismo (`no_show` vs cancelación tardía, RN-ST-04), cancelaciones por motivo (RN-CX-04); calculados sobre `appointment_event`, nunca sobre estados mutados (US-050 CA-3)
   - Auditoría de turnos de la clínica (actor, antes/después, timestamp), inmutable, visible solo admin (RBAC); el historial por turno de C-05 se mantiene

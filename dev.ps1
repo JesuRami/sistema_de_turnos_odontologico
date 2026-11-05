@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Entorno de desarrollo con Docker en un solo comando.
 
@@ -65,7 +65,10 @@ function Start-Stack {
   Write-Host "  Frontend (Vite):  http://localhost:5174"
   Write-Host "  API (Swagger):    http://localhost:8000/docs"
   Write-Host "  Reserva pública:  http://localhost:5174/b/clinica-demo"
-  Write-Host "  Admin del seed:   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD de .env (pide cambiar la clave al entrar)"
+  Write-Host "  Credenciales de acceso demo (ver DOCS_ROLES_Y_ACCESO.md):"
+  Write-Host "    - Admin:       admin@example.com      (clave de SEED_ADMIN_PASSWORD, pide cambio al entrar)"
+  Write-Host "    - Recepción:   recepcion@example.com  (misma clave, acceso directo a agenda)"
+  Write-Host "    - Odontólogo:  odontologo@example.com (misma clave, vista restringida a sus turnos)"
 }
 
 switch ($Command) {

@@ -56,8 +56,8 @@ Paciente → (link | WhatsApp → webhook) → API → DB (estado + auditoría +
 1. Worker reclama jobs vencidos (`scheduled_for <= now`, `status=scheduled`) con lock pesimista (`FOR UPDATE SKIP LOCKED`) para no duplicar entre réplicas.
 2. Por cada job: verifica que el turno siga vigente (si se canceló, job → `cancelled`, RN-CX-03); verifica opt-in del canal (RN-WA-01); verifica ventana 24 h de Meta para elegir plantilla vs. seguimiento.
 3. Envía por Cloud API (WhatsApp) o email; guarda `provider_message_id`; job → `sent`.
-4. Webhooks de entrega/lectura actualizan a `delivered/read`; fallos reintentan con backoff hasta N intentos → `failed` + escalado a email.
-5. Si el paciente confirma por cualquier vía, los jobs futuros del turno se cancelan.
+4. Webhooks de entrega/lectura actualizan a `delivered/read`; fallos reintentan con backoff (5 min → 30 min) hasta 3 intentos → `failed` + escalado a email.
+5. Si el paciente confirma por cualquier vía, se cancelan los jobs futuros **que piden confirmar** (alta de turno, 72 h y 24 h); el recordatorio de 3 h ("te esperamos") sigue. Los turnos de recepción nacen confirmados y reciben todos los pasos (decisión 2026-11-05, C-09).
 
 ```
 Cron → Worker → DB (reclamo) → Meta/Email → DB (estados) ← webhooks

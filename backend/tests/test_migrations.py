@@ -17,6 +17,10 @@ TABLAS = {
     "appointment",
     "appointment_event",
     "patient_merge",
+    "notification_template",
+    "reminder_job",
+    "delivery_event",
+    "consent",
 }
 INDICES = {
     "uq_clinic_slug",
@@ -41,6 +45,16 @@ INDICES = {
     "ix_appointment_event_appointment_id_created_at",
     "ix_appointment_event_clinic_id_created_at",
     "ix_patient_merge_clinic_id_created_at",
+    "uq_notification_template_clinic_id_id",
+    "uq_notification_template_clinic_id_channel_step",
+    "uq_reminder_job_clinic_id_id",
+    "uq_reminder_job_appointment_id_step_channel",
+    "ix_reminder_job_due",
+    "ix_reminder_job_claimed",
+    "ix_reminder_job_clinic_step_sent",
+    "ix_delivery_event_reminder_job_id_occurred_at",
+    "uq_delivery_event_job_provider_event",
+    "ix_consent_patient_channel_changed",
 }
 ENUMS = {
     "user_role",
@@ -53,6 +67,11 @@ ENUMS = {
     "cancellation_reason",
     "appointment_event_type",
     "actor_type",
+    "reminder_channel",
+    "reminder_status",
+    "consent_status",
+    "consent_source",
+    "delivery_event_type",
 }
 
 
@@ -477,3 +496,135 @@ def test_downgrade_a_c06_quita_la_instantanea_y_permite_volver_a_subir(temp_data
         == []
     )
     command.upgrade(cfg, "head")
+
+
+# ------------------------------------------------------------------ C-09 motor-recordatorios
+
+
+def _ejecutar(url: str, *sentencias: tuple[str, tuple[object, ...]]) -> None:
+    """Ejecuta sentencias de escritura (con parámetros) contra la DB indicada."""
+    import asyncio
+
+    import asyncpg
+    from sqlalchemy.engine import make_url
+
+    async def _run() -> None:
+        u = make_url(url)
+        conn = await asyncpg.connect(
+            user=u.username, password=u.password, host=u.host, port=u.port, database=u.database
+        )
+        try:
+            for sql, args in sentencias:
+                await conn.execute(sql, *args)
+        finally:
+            await conn.close()
+
+    asyncio.run(_run())
+
+
+def test_upgrade_crea_los_objetos_del_motor_de_recordatorios_de_c09(temp_database: str) -> None:
+    """WHEN upgrade head THEN existen las cuatro tablas, los índices parciales y los triggers."""
+    command.upgrade(alembic_config(), "head")
+
+    assert {"notification_template", "reminder_job", "delivery_event", "consent"} <= _tablas(
+        temp_database
+    )
+    triggers = fetch_rows(
+        "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal "
+        "AND tgname IN ('trg_delivery_event_no_mutate', 'trg_consent_no_mutate')",
+        temp_database,
+    )
+    assert {str(r[0]) for r in triggers} == {
+        "trg_delivery_event_no_mutate",
+        "trg_consent_no_mutate",
+    }
+    cola = fetch_rows(
+        "SELECT pg_get_indexdef(indexrelid) FROM pg_index i "
+        "JOIN pg_class c ON c.oid = i.indexrelid "
+        "WHERE c.relname = 'ix_reminder_job_due'",
+        temp_database,
+    )
+    assert "WHERE (status = 'scheduled'" in str(cola[0][0])
+
+
+def test_downgrade_a_c08_elimina_los_objetos_de_c09_y_conserva_el_flag(
+    temp_database: str,
+) -> None:
+    cfg = alembic_config()
+    command.upgrade(cfg, "c08_manage_token")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia', 'clinica-c09-down')", ()),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164, whatsapp_opt_in) "
+            "SELECT id, 'Paciente Ficticio', '+5491155550101', true FROM clinic",
+            (),
+        ),
+    )
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, "c08_manage_token")
+
+    assert not {"notification_template", "reminder_job", "delivery_event", "consent"} & _tablas(
+        temp_database
+    )
+    assert not {
+        "reminder_channel",
+        "reminder_status",
+        "consent_status",
+        "consent_source",
+        "delivery_event_type",
+    } & _enums(temp_database)
+    assert fetch_rows("SELECT whatsapp_opt_in FROM patient", temp_database) == [(True,)]
+    command.upgrade(cfg, "head")
+
+
+def test_backfill_de_c09_registra_el_consentimiento_legacy_y_las_plantillas(
+    temp_database: str,
+) -> None:
+    """Sobre una base en c08 con 2 clínicas y 2 pacientes, `upgrade head` siembra lo previo."""
+    from app.modules.reminders.templates import DEFAULT_TEMPLATES
+
+    cfg = alembic_config()
+    command.upgrade(cfg, "c08_manage_token")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia A', 'clinica-c09-a')", ()),
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia B', 'clinica-c09-b')", ()),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164, whatsapp_opt_in) "
+            "SELECT id, 'Paciente Ficticio Con Opt-in', '+5491155550102', true FROM clinic "
+            "WHERE slug = 'clinica-c09-a'",
+            (),
+        ),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164, whatsapp_opt_in) "
+            "SELECT id, 'Paciente Ficticio Sin Opt-in', '+5491155550103', false FROM clinic "
+            "WHERE slug = 'clinica-c09-a'",
+            (),
+        ),
+    )
+
+    command.upgrade(cfg, "head")
+
+    consentimientos = fetch_rows(
+        "SELECT p.full_name, c.channel::text, c.status::text, c.source::text "
+        "FROM consent c JOIN patient p ON p.id = c.patient_id",
+        temp_database,
+    )
+    assert consentimientos == [
+        ("Paciente Ficticio Con Opt-in", "whatsapp", "opt_in", "legacy"),
+    ]
+    flags = {
+        str(r[0]): r[1]
+        for r in fetch_rows("SELECT full_name, whatsapp_opt_in FROM patient", temp_database)
+    }
+    assert flags == {
+        "Paciente Ficticio Con Opt-in": True,
+        "Paciente Ficticio Sin Opt-in": False,
+    }
+    por_clinica = fetch_rows(
+        "SELECT count(*) FROM notification_template GROUP BY clinic_id", temp_database
+    )
+    assert sorted(por_clinica) == [(len(DEFAULT_TEMPLATES),), (len(DEFAULT_TEMPLATES),)]
+    assert len(DEFAULT_TEMPLATES) == 8

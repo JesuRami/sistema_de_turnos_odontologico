@@ -1,10 +1,11 @@
-"""Entrypoint del worker async (C-01: ocioso sano; scheduler real en C-09).
+"""Entrypoint del worker async (C-01 scaffolding; scheduler del motor de recordatorios en C-09).
 
 Decisión aprobada: ARQ (async nativo, liviano). Misma imagen que `api`,
 comando distinto (un proceso por contenedor — regla dura 12). Swappable a
 Celery/Dramatiq tocando solo dependencia + este módulo.
 
-C-01: conecta Redis + Postgres, logea y queda idle (sin jobs).
+C-09: verifica Redis + Postgres y corre el worker ARQ con el cron por minuto del motor de
+recordatorios (`app.worker.settings`). Si falta una dependencia aborta nombrando la variable.
 """
 
 import asyncio
@@ -38,15 +39,8 @@ async def check_postgres(database_url: str) -> bool:
         await conn.close()
 
 
-async def idle_forever() -> None:
-    """Loop ocioso sano (el scheduler de reminders llega en C-09)."""
-    while True:
-        logger.info("worker idle (scheduler llega en C-09)")
-        await asyncio.sleep(60)
-
-
 async def main() -> None:
-    """Arranca el worker: verifica dependencias y queda idle."""
+    """Arranca el worker: verifica dependencias y corre el cron del motor de recordatorios."""
     logging.basicConfig(level=logging.INFO)
     redis_url = os.environ.get("REDIS_URL", "")
     database_url = os.environ.get("DATABASE_URL", "")
@@ -56,18 +50,17 @@ async def main() -> None:
     pg_ok = await check_postgres(database_url)
     logger.info("worker conectado: redis=%s postgres=%s", redis_ok, pg_ok)
 
-    # Hook ARQ (se materializa con funciones en C-09; hoy solo valida la lib).
+    from arq.worker import create_worker
+
+    from app.core.settings import get_settings
+    from app.worker.settings import build_worker_settings
+
+    worker = create_worker(build_worker_settings(get_settings()))
     try:
-        from arq import create_pool
-        from arq.connections import RedisSettings
-
-        pool = await create_pool(RedisSettings.from_dsn(redis_url))
-        await pool.close()
-        logger.info("arq pool ok (sin funciones hasta C-09)")
-    except Exception as exc:  # noqa: BLE001 — scaffolding: solo log
-        logger.warning("arq no disponible aún: %s", exc)
-
-    await idle_forever()
+        await worker.async_run()
+    except asyncio.CancelledError:
+        # ARQ cancela su tarea principal ante SIGTERM/SIGINT: es un apagado ordenado, no un error.
+        logger.info("worker detenido")
 
 
 if __name__ == "__main__":

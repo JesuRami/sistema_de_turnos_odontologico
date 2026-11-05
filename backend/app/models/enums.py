@@ -106,6 +106,76 @@ class ActorType(enum.StrEnum):
     SYSTEM = "system"
 
 
+class ReminderChannel(enum.StrEnum):
+    """Canal de un recordatorio y de un consentimiento (C-09)."""
+
+    WHATSAPP = "whatsapp"
+    EMAIL = "email"
+
+
+class ReminderStatus(enum.StrEnum):
+    """Estado de un `reminder_job` (C-09, D1).
+
+    `sending` es el lease del reclamo (no está en la KB); `delivered` y `read` los escribe C-10.
+    """
+
+    SCHEDULED = "scheduled"
+    SENDING = "sending"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    READ = "read"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
+
+
+class ReminderReason(enum.StrEnum):
+    """Catálogo cerrado de motivos de un job saltado, cancelado o fallado (C-09, D1)."""
+
+    NO_CONSENT = "no_consent"
+    NO_RECIPIENT = "no_recipient"
+    APPOINTMENT_STARTED = "appointment_started"
+    APPOINTMENT_INACTIVE = "appointment_inactive"
+    STEP_ELAPSED = "step_elapsed"
+    STEP_REMOVED = "step_removed"
+    RESCHEDULED = "rescheduled"
+    CONFIRMED = "confirmed"
+    TEMPLATE_INACTIVE = "template_inactive"
+    PROVIDER_REJECTED = "provider_rejected"
+    SEND_FAILED = "send_failed"
+    LEASE_EXPIRED = "lease_expired"
+
+
+class ConsentStatus(enum.StrEnum):
+    """Estado de un consentimiento por canal (C-09)."""
+
+    OPT_IN = "opt_in"
+    OPT_OUT = "opt_out"
+
+
+class ConsentSource(enum.StrEnum):
+    """Quién originó un cambio de consentimiento; `legacy` es el backfill previo a C-09."""
+
+    BOOKING = "booking"
+    WHATSAPP_REPLY = "whatsapp_reply"
+    RECEPTION = "reception"
+    LEGACY = "legacy"
+
+
+class DeliveryEventType(enum.StrEnum):
+    """Hecho registrado en `delivery_event` (append-only, C-09; `delivered`/`read` en C-10)."""
+
+    SENT = "sent"
+    ATTEMPT_FAILED = "attempt_failed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
+    ESCALATED = "escalated"
+    LEASE_EXPIRED = "lease_expired"
+    DELIVERED = "delivered"
+    READ = "read"
+
+
 # Vigente = ocupa agenda (RN-AG-01); `absent`, `no_show` y `cancelled` liberan el hueco.
 VIGENT_STATUSES = (
     AppointmentStatus.PENDING,

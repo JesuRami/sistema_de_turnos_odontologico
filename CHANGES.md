@@ -277,7 +277,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ## FASE 3 — Recordatorios WhatsApp (el diferencial del MVP)
 
 ### [C-09] `motor-recordatorios`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` archivado (2026-11-05 → `openspec/changes/archive/2026-11-05-c-09-motor-recordatorios/`; specs sincronizados: `reminders/job-scheduling`, `reminders/dispatch-worker` y `reminders/channel-consent` nuevos, `booking/manage-token` modificado, `core/patients` y `core/seed` ampliados)
 - **Scope**: Reminder engine persistente sobre Postgres — scheduler + sender (US-030 backend, Flujo 3, DD-06)
   - `reminder_job` (`scheduled_for` en zona de la clínica, idempotencia única `(appointment_id, step, channel)`), `notification_template` (72/24/3 h + alta de turno), `delivery_event`
   - Worker tick 60 s con `FOR UPDATE SKIP LOCKED LIMIT 100`; pre-envío: turno vigente (si no → `cancelled`, RN-CX-03), opt-in del canal (RN-WA-01), plantilla activa, ventana 24 h de Meta

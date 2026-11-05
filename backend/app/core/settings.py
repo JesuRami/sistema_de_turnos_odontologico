@@ -7,6 +7,8 @@ C-03 agrega la validación del secreto JWT (≥32 bytes, algoritmo pineado), los
 límites de rate-limit de auth y los flags de la cookie de refresh.
 """
 
+from typing import Literal
+
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +16,18 @@ from app.core.rate_limit import parse_window_spec
 
 _JWT_MIN_SECRET_BYTES = 32
 _JWT_MAX_ACCESS_MINUTES = 15
+_LINK_MIN_SECRET_BYTES = 32
+
+
+def parse_backoff_minutes(valor: str) -> tuple[int, ...]:
+    """`"5,30,120"` → `(5, 30, 120)`; todo tramo debe ser un entero positivo."""
+    try:
+        tramos = tuple(int(parte) for parte in valor.split(","))
+    except ValueError:
+        raise ValueError("debe ser una lista de minutos separada por comas") from None
+    if not tramos or any(t < 1 for t in tramos):
+        raise ValueError("cada tramo debe ser un entero positivo")
+    return tramos
 
 
 class SettingsError(RuntimeError):
@@ -93,8 +107,34 @@ class Settings(BaseSettings):
     EMAIL_PASSWORD: str = ""
     EMAIL_FROM: str = ""
 
-    # Worker async (scheduler real en C-09; en C-01 solo concurrencia).
-    REMINDER_WORKER_CONCURRENCY: int = 10
+    # Worker async y motor de recordatorios (C-09, D10/D12/D13).
+    REMINDER_WORKER_CONCURRENCY: int = Field(default=10, ge=1)
+    # `disabled`: el worker no reclama los jobs del canal y nunca los marca enviados.
+    # El valor `meta` lo agrega C-10 con el adaptador de la Cloud API.
+    REMINDER_WHATSAPP_PROVIDER: Literal["disabled", "fake"] = "disabled"
+    REMINDER_EMAIL_PROVIDER: Literal["disabled", "smtp", "fake"] = "disabled"
+    REMINDER_MAX_ATTEMPTS: int = Field(default=3, ge=1)
+    # Espera tras el 1.er, 2.º… fallo; el tramo i vale tras el fallo i+1.
+    REMINDER_BACKOFF_MINUTES: str = "5,30,120"
+    REMINDER_LEASE_MINUTES: int = Field(default=5, ge=1)
+    REMINDER_TICK_BUDGET_S: int = Field(default=50, ge=1)
+    REMINDER_BATCH_SIZE: int = Field(default=100, ge=1)
+    # Costo estimado por mensaje en USD × 10⁻⁶ (RN-WA-05); 0 hasta tener precios.
+    REMINDER_COST_WHATSAPP_MICROS: int = Field(default=0, ge=0)
+    REMINDER_COST_EMAIL_MICROS: int = Field(default=0, ge=0)
+    # Firma de los links de gestión de los mensajes (D9). Vacío solo se admite en `dev`
+    # (los links firmados quedan deshabilitados); nunca se imprime.
+    MANAGE_LINK_SECRET: SecretStr = SecretStr("")
+
+    @property
+    def reminder_backoff_minutes(self) -> tuple[int, ...]:
+        return parse_backoff_minutes(self.REMINDER_BACKOFF_MINUTES)
+
+    @field_validator("REMINDER_BACKOFF_MINUTES")
+    @classmethod
+    def _validar_backoff(cls, valor: str) -> str:
+        parse_backoff_minutes(valor)
+        return valor
 
     @field_validator(
         "AUTH_LOGIN_RATE_LIMIT",
@@ -135,6 +175,17 @@ class Settings(BaseSettings):
             )
         if self.JWT_REFRESH_DAYS < 1:
             raise SettingsError("JWT_REFRESH_DAYS debe ser mayor o igual a 1")
+        link_secret = self.MANAGE_LINK_SECRET.get_secret_value()
+        if link_secret or self.ENV != "dev":
+            if len(link_secret.encode("utf-8")) < _LINK_MIN_SECRET_BYTES:
+                raise SettingsError(
+                    f"MANAGE_LINK_SECRET debe tener al menos {_LINK_MIN_SECRET_BYTES} bytes; "
+                    "generar con `openssl rand -hex 32`"
+                )
+        if len(self.reminder_backoff_minutes) < self.REMINDER_MAX_ATTEMPTS - 1:
+            raise SettingsError(
+                "REMINDER_BACKOFF_MINUTES debe tener al menos REMINDER_MAX_ATTEMPTS - 1 tramos"
+            )
         return self
 
 

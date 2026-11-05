@@ -60,9 +60,17 @@ from app.modules.reminders.invalidation import (
     NoopReminderInvalidator,
     ReminderInvalidator,
 )
+from app.modules.reminders.links import SIGNED_RE, verify_manage_token
 
 # `secrets.token_urlsafe(32)` de C-07: 43 caracteres url-safe, sin relleno.
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+
+def is_well_formed(token: str) -> bool:
+    """Token aleatorio de C-07 o token firmado de C-09 (D9); lo demás es 404 sin tocar la base."""
+    return bool(TOKEN_RE.match(token) or SIGNED_RE.match(token))
+
+
 _MANAGEABLE = frozenset({AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED})
 # 409 que, para el paciente, significan "ese horario ya no está" (mismo criterio que C-07).
 _SLOT_LOST = frozenset({"slot_taken", "slot_blocked", "resource_inactive"})
@@ -120,9 +128,18 @@ class ManageService:
         self.ttl = timedelta(hours=settings.MANAGE_TOKEN_TTL_H)
 
     async def resolve(self, token: str) -> Link:
-        """Formato → hash → índice único → vigencia (D4). 404 uniforme; 410 si venció."""
-        if not TOKEN_RE.match(token):
-            raise DomainError(404, "manage_link_not_found")
+        """Formato → hash o firma → índice único → vigencia (D4). 404 uniforme; 410 si venció."""
+        if TOKEN_RE.match(token):
+            credencial = Appointment.manage_token_hash == token_digest(token)
+        else:
+            # Token firmado (C-09, D9): la firma se verifica en tiempo constante y el turno se
+            # carga por id; cualquier falla es el mismo 404 que un token desconocido.
+            turno_id = verify_manage_token(
+                self.settings.MANAGE_LINK_SECRET.get_secret_value(), token
+            )
+            if turno_id is None:
+                raise DomainError(404, "manage_link_not_found")
+            credencial = Appointment.id == turno_id
         fila = (
             await self.session.execute(
                 # Columnas explícitas (regla 8); todo unido por el `clinic_id` del turno.
@@ -159,7 +176,7 @@ class ManageService:
                         Professional.clinic_id == Appointment.clinic_id,
                     ),
                 )
-                .where(Appointment.manage_token_hash == token_digest(token))
+                .where(credencial)
             )
         ).one_or_none()
         if fila is None:

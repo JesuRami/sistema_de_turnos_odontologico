@@ -28,6 +28,7 @@ from app.models import (
     UserRole,
 )
 from app.modules.appointments.audit import Actor, record_event
+from app.modules.reminders.scheduling import reconcile
 
 S = AppointmentStatus
 _FRONT_DESK = frozenset({UserRole.ADMIN, UserRole.RECEPCION})
@@ -141,3 +142,5 @@ async def apply_transition(
         to_status=target,
         payload=payload,
     )
+    # C-09 (D3): cancelar, confirmar o registrar asistencia ajusta los jobs en esta transacción.
+    await reconcile(session, appointment, now=now)

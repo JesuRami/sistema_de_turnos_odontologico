@@ -413,6 +413,114 @@ El seed lo carga con un número ficticio solo al crear la clínica.
 largo `NOT VALID` → `VALIDATE` (regla 11). `appointment` no cambia. El downgrade
 quita la columna y pierde el teléfono cargado.
 
+## Motor de recordatorios (C-09)
+
+Persistente sobre Postgres: `reminder_job` (clave única `(appointment_id, step, channel)`),
+`delivery_event` y `consent` append-only, `notification_template` por clínica. Todas llevan
+`clinic_id` y FKs compuestas. El diseño completo está en
+`openspec/changes/c-09-motor-recordatorios/design.md`.
+
+### Plantillas por defecto
+
+El seed (`python -m app.seed`) y la migración `c09_reminder_engine` cargan, para cada clínica, las
+plantillas de **alta de turno + 72 h + 24 h + 3 h**, en WhatsApp y en email (8 filas, `es_AR`,
+activas). Los textos viven en una sola fuente, `app/modules/reminders/templates.py`, y solo usan
+las variables `{{nombre}} {{clinica}} {{fecha}} {{hora}} {{profesional}} {{link}}`: nunca datos
+personales. Los nombres de WhatsApp (`turno_creado_v1`, `recordatorio_72h_v1`,
+`recordatorio_24h_v1`, `recordatorio_3h_v1`) son placeholders hasta que Meta apruebe los reales
+(C-10); `{{direccion}}` queda fuera hasta que la clínica guarde su dirección.
+
+Reejecutar el seed **repone** una plantilla faltante y **no pisa** el texto ni el estado que el
+admin haya editado (`ON CONFLICT DO NOTHING`).
+
+```bash
+SEED_CLINIC_SLUG=clinica-demo SEED_CLINIC_NAME="Clínica Demo Ficticia" SEED_ADMIN_EMAIL=admin@example.com SEED_ADMIN_PASSWORD='<clave provisoria>' python -m app.seed
+```
+
+### Consentimiento
+
+`ConsentService` (`app/modules/reminders/consent.py`) es el **único** escritor de `consent` y de
+`patient.whatsapp_opt_in`: ambos cambian en la misma transacción. Sin opt-in vigente no se envía
+nada por WhatsApp; una baja salta (`skipped`, `no_consent`) los jobs pendientes del paciente y
+canal, y un alta posterior no los revive. Las fuentes son `booking`, `reception`,
+`whatsapp_reply` (C-10) y `legacy` (el backfill de la migración, porque el origen real de un opt-in
+previo no se conoce).
+
+### Link de gestión firmado (`MANAGE_LINK_SECRET`)
+
+Para escribir `{{link}}` en un mensaje el motor necesita el token en claro, pero la base solo
+guarda el SHA-256 del token aleatorio de C-07 y un turno de recepción no tiene token. Por eso
+`GET/PATCH /api/manage/{token}` acepta un **segundo formato**, firmado y sin estado:
+
+```
+token = "v1." + base64url( appointment_id[16 bytes] ‖ HMAC-SHA256(MANAGE_LINK_SECRET,
+                            "manage-link/v1" ‖ appointment_id)[:16] )      # 46 caracteres
+link  = {FRONTEND_PUBLIC_URL}/g/{token}
+```
+
+- Es estable: todos los mensajes de un turno llevan el mismo link. Los tokens aleatorios ya
+  emitidos siguen valiendo; nada se rota.
+- Mismas guardas que C-08: TTL `ends_at + MANAGE_TOKEN_TTL_H`, vista mínima, ventana de
+  cancelación, `404 manage_link_not_found` uniforme (firma inválida = token desconocido) y cupo
+  por `sha256(token)`. El token no se loguea (ver "Transporte del token").
+- `MANAGE_LINK_SECRET`: ≥ 32 bytes (`openssl rand -hex 32`), obligatorio salvo `ENV=dev`, donde
+  vacío deshabilita los links firmados. **Rotarlo invalida todos los links firmados vivos**
+  (los mensajes ya enviados dejan de abrir): es la palanca de emergencia, no una operación de
+  rutina. Un link firmado no se puede revocar suelto; el límite es el TTL absoluto.
+
+### Programación de los recordatorios
+
+Al crear un turno se programan el **alta** (`created`, sale al instante) y un paso por cada entrada
+de `clinic.reminder_steps` (por defecto 72, 24 y 3 h por WhatsApp), con `scheduled_for = starts_at −
+offset`. Solo se programan pasos cuya hora todavía no pasó (un turno creado 2 h antes solo recibe el
+alta). La programación es **estado-basada** (`reconcile`): se recalcula contra el estado actual del
+turno, así que es idempotente y la dispara el núcleo de escritura de turnos (`book`,
+`_reschedule`, `apply_transition`) en su misma transacción, sea cual sea el camino (recepción,
+reserva pública, bloqueo de agenda, link de gestión).
+
+- **Reprogramar** recalcula los pendientes; los pasos ya enviados no se tocan ni se reenvían.
+- **Cancelar** (o registrar asistencia) cancela los pendientes.
+- **Confirmar** un turno online cancela solo los pasos que piden confirmar (alta, 72 h y 24 h); el
+  de 3 h sigue. Un turno de recepción nace confirmado y recibe todos los pasos.
+
+### Worker y proveedores
+
+El worker (`python -m app.worker.entrypoint`, ARQ) corre un tick por minuto: recupera leases
+vencidos, reclama hasta `REMINDER_BATCH_SIZE` jobs con `FOR UPDATE SKIP LOCKED`, valida cada uno
+(turno vigente y no iniciado, horario vigente, consentimiento, destinatario, plantilla activa),
+envía **fuera** de la transacción y registra el resultado. Los reintentos esperan 5 y 30 minutos
+(`REMINDER_BACKOFF_MINUTES`); al tercer fallo el job queda `failed` y, si el paciente tiene email y
+no se dio de baja de ese canal, se crea el job de email del mismo paso. Cada intento, envío, salto,
+cancelación y escalado queda en `delivery_event` (sin datos personales).
+
+| Variable | Valores | Efecto |
+|---|---|---|
+| `REMINDER_WHATSAPP_PROVIDER` | `disabled` (default), `fake` | `disabled`: el worker no reclama jobs de WhatsApp ni los marca enviados. El valor `meta` llega con C-10. |
+| `REMINDER_EMAIL_PROVIDER` | `disabled` (default), `smtp`, `fake` | `smtp` usa `EMAIL_HOST/PORT/USER/PASSWORD/FROM`: puerto 465 = TLS implícito, 587 = STARTTLS, otro = sin cifrar (solo desarrollo). |
+| `REMINDER_MAX_ATTEMPTS` · `REMINDER_BACKOFF_MINUTES` | `3` · `5,30,120` | Intentos totales y espera tras cada fallo. |
+| `REMINDER_LEASE_MINUTES` · `REMINDER_TICK_BUDGET_S` · `REMINDER_BATCH_SIZE` | `5` · `50` · `100` | Plazo del lease, presupuesto de tiempo del tick y tamaño del lote. |
+| `REMINDER_COST_WHATSAPP_MICROS` · `REMINDER_COST_EMAIL_MICROS` | `0` | Costo estimado por mensaje en USD × 10⁻⁶, copiado a `reminder_job.cost_micros` (RN-WA-05). |
+
+Para probar el flujo en desarrollo sin proveedor real, poné `REMINDER_WHATSAPP_PROVIDER=fake` (los
+envíos se descartan y solo se loguean metadatos) o `REMINDER_EMAIL_PROVIDER=smtp` apuntando a un
+servidor local de captura. Con ambos en `disabled` el motor programa pero no envía: se puede
+desplegar sin riesgo.
+
+Garantías y límites: el envío es **al menos una vez** (si el worker muere entre el envío y el
+registro del resultado, el lease reenvía); un job de un turno ya iniciado se salta, nunca se
+marca `sent`; una cancelación que llega entre el re-chequeo y el envío puede dejar salir un
+mensaje (ventana de milisegundos). Un paso ya enviado no se reenvía al reprogramar (hace falta una
+plantilla "turno reprogramado", prevista para C-10). Los pasos salen a `starts_at − offset` aunque
+caigan de madrugada: no hay ventana de silencio nocturno todavía.
+
+### Revisión `c09_reminder_engine` (C-09)
+
+Tablas nuevas y vacías (`notification_template`, `reminder_job`, `delivery_event`, `consent`): sus
+índices, FKs y CHECKs se crean junto con la tabla, sin `CONCURRENTLY` ni `NOT VALID` (regla 11).
+Carga el consentimiento previo (`legacy`) y las plantillas de las clínicas existentes. Downgrade:
+`alembic downgrade c08_manage_token` elimina las cuatro tablas y sus enums; `patient.whatsapp_opt_in`
+no se toca.
+
 ## Seed del tenant inicial
 
 Crea una clínica, un admin con cambio de contraseña obligatorio, el sillón

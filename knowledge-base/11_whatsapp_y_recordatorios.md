@@ -26,21 +26,24 @@
 ## 3. Motor de recordatorios (reminder engine)
 
 ### Programación
-- Al crear un turno vigente se insertan N `reminder_job` (default 3: T-72/24/3 h) con `scheduled_for` calculado en la zona de la clínica. Reprogramar recalcula los pendientes; cancelar los marca `cancelled`.
+- Al crear un turno vigente se insertan el job de alta de turno (`created`) y N `reminder_job` (default 3: T-72/24/3 h) con `scheduled_for = starts_at − offset` (la zona de la clínica solo interviene al mostrar fecha y hora). Reprogramar recalcula los pendientes; cancelar los marca `cancelled`. La programación es **estado-basada** (`reconcile`): se recalcula contra el estado actual del turno, así que es idempotente y la dispara el núcleo de escritura de turnos (C-05), no cada caller.
+- Confirmar un turno online cancela solo los pasos que piden confirmar (alta, 72 h y 24 h, `offset_h ≥ 24`); el de 3 h sigue. Un turno de recepción nace `confirmed` y recibe todos los pasos.
 - Regla anti-ruido: si el turno se crea a menos de X horas del inicio, solo se programan los pasos cuya `scheduled_for` quede en el futuro (nunca enviar "recordatorio 72 h" 2 h antes del turno).
 
 ### Ejecución (worker)
-1. Tick cada 60 s: `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 100` sobre jobs vencidos en estado `scheduled`.
-2. Validaciones previas al envío: turno vigente, opt-in del canal, plantilla activa, ventana 24 h de Meta (elige plantilla vs. seguimiento libre para respuestas).
+1. Tick cada 60 s (cron de ARQ): `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 100` sobre jobs vencidos en estado `scheduled`; los jobs válidos pasan a `sending` (**lease** de 5 min: si el worker muere, vuelven a `scheduled`) y el envío ocurre **fuera** de la transacción, con un re-chequeo del turno justo antes.
+2. Validaciones previas al envío: turno vigente y no iniciado, horario vigente (`starts_at` igual al del job), opt-in del canal, destinatario, plantilla activa, ventana 24 h de Meta (elige plantilla vs. seguimiento libre para respuestas; C-09 siempre envía plantilla porque aún no hay mensajes entrantes).
 3. Envío + guardado de `provider_message_id`; job → `sent`.
 4. Webhooks (`delivery`, `read`, `failed`, reply del paciente) actualizan job y `delivery_event`; la respuesta SÍ/NO ejecuta la transición de estado del turno (idempotente por `provider_event_id`).
-5. Reintentos con backoff (5 min → 30 min → 2 h); tras 3 fallos → `failed` + escalado a email si hay dirección + alerta visible a recepción.
+5. Reintentos con backoff (5 min → 30 min; `REMINDER_BACKOFF_MINUTES=5,30,120`); tras 3 intentos (`REMINDER_MAX_ATTEMPTS`) → `failed` + escalado a email si hay dirección y no hay baja de ese canal (se crea el job de email del mismo paso). La alerta visible a recepción queda para una UI posterior.
 
 ### Idempotencia y seguridad del motor
 - Clave de idempotencia `(appointment_id, step, channel)` única en DB: el doble-tick no duplica mensajes.
 - Eventos de Meta deduplicados por `provider_event_id`.
 - Tope de antigüedad: jamás enviar recordatorio de un turno ya iniciado (jobs vencidos de turnos pasados → `skipped`, no `sent`).
 - Firma `X-Hub-Signature-256` obligatoria en webhook; sin firma se responde 401 y se registra intento.
+- Link de gestión de los mensajes: token **firmado** (HMAC con `MANAGE_LINK_SECRET`), estable por turno y aceptado por `/api/manage/{token}` además del token aleatorio de C-07 (la base solo guarda el hash de ese token y los turnos de recepción no tienen uno).
+- Garantía de entrega al menos una vez: si el worker muere entre el envío y el registro del resultado, el lease reenvía el job.
 
 ## 4. Costos y transparencia (RN-WA-05)
 

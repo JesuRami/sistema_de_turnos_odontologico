@@ -31,8 +31,11 @@ from app.models import (
     Block,
     Chair,
     Clinic,
+    ConsentSource,
+    ConsentStatus,
     Patient,
     Professional,
+    ReminderChannel,
     ScheduleRule,
 )
 from app.modules.agenda.availability import RuleWindow
@@ -57,6 +60,7 @@ from app.modules.booking_public.schemas import (
     SlotRead,
 )
 from app.modules.clinic.service import create_patient
+from app.modules.reminders.consent import ConsentService
 
 MAX_RANGE = timedelta(days=14)
 ALTERNATIVES = 3
@@ -499,7 +503,12 @@ class BookingPublicService:
             if existente is not None:
                 # Nunca se pisan nombre ni contactos guardados; el opt-in solo sube.
                 if contacto.opt_in_granted and not existente.whatsapp_opt_in:
-                    existente.whatsapp_opt_in = True
+                    await ConsentService(self.session).record(
+                        existente,
+                        ReminderChannel.WHATSAPP,
+                        ConsentStatus.OPT_IN,
+                        ConsentSource.BOOKING,
+                    )
                 self._stamp_privacy(existente)
                 await self.session.flush()
                 return existente
@@ -510,6 +519,7 @@ class BookingPublicService:
             phone=contacto.phone_e164,
             email=contacto.email,
             whatsapp_opt_in=contacto.opt_in_granted,
+            consent_source=ConsentSource.BOOKING,
         )
         self._stamp_privacy(creado)
         await self.session.flush()

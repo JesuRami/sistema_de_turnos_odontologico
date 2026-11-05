@@ -14,6 +14,9 @@ Reglas:
   sobre una clínica existente no los vuelve a crear aunque se hayan renombrado.
 - El teléfono de contacto sintético (C-08) también se carga solo al crear la clínica:
   reejecutar no pisa el que el admin haya cambiado desde las políticas.
+- Las plantillas de notificación por defecto (C-09: alta + 72/24/3 h, WhatsApp y email) se
+  siembran en cada corrida con `ON CONFLICT DO NOTHING`: se repone la que falte y nunca se pisa
+  el texto ni el estado que el admin haya editado.
 - `SEED_BOOKING_DEMO=true` (opcional, C-07): la clínica nueva queda con reserva pública
   habilitada, el profesional de ejemplo activo y reservable, y una regla lunes-viernes
   09:00-13:00 de 30 min sobre el sillón (clínica demo / E2E). Sin el flag, la clínica no
@@ -35,6 +38,7 @@ from sqlalchemy.pool import NullPool
 from app.core.database import async_database_url
 from app.core.security import hash_password
 from app.models import Chair, Clinic, Professional, ScheduleRule, User, UserRole
+from app.modules.reminders.seeding import seed_default_templates
 
 SEED_VARS = ("SEED_CLINIC_SLUG", "SEED_CLINIC_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD")
 SAMPLE_CHAIR_NAME = "Sillón 1"
@@ -121,6 +125,8 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
         )
         .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
     )
+    # Siempre (idempotente): repone una plantilla faltante sin pisar las que el admin editó.
+    await seed_default_templates(session, clinic_id)
     professional: Professional | None = None
     if created_id is not None:
         chair = Chair(clinic_id=clinic_id, name=SAMPLE_CHAIR_NAME, active=True)

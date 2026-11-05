@@ -58,6 +58,7 @@ from app.modules.appointments.schemas import (
     TransitionRequest,
 )
 from app.modules.appointments.states import apply_transition
+from app.modules.reminders.scheduling import reconcile, schedule_new
 
 MAX_RANGE = timedelta(days=31)
 _EXCLUDE_PREFIX = "ex_appointment_"
@@ -421,6 +422,8 @@ class AppointmentsService:
             to_status=status,
             payload=payload,
         )
+        # C-09 (D3): alta + pasos futuros en la misma transacción que el turno.
+        await schedule_new(self.session, appointment, now=self.now)
         return appointment
 
     # ------------------------------------------------------- reprogramación
@@ -557,6 +560,8 @@ class AppointmentsService:
             to_status=appointment.status,
             payload=payload,
         )
+        # C-09 (D3): recalcula los jobs pendientes sobre el horario nuevo.
+        await reconcile(self.session, appointment, now=self.now)
         return appointment
 
     # ---------------------------------------------------------- transiciones

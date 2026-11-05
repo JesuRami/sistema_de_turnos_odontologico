@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.exceptions import DomainError
 from app.common.phone import InvalidPhoneError, normalize_phone_e164
 from app.common.principal import Principal
-from app.models import Appointment, Patient
+from app.models import Appointment, ConsentSource, Patient
 from app.modules.clinic.service import create_patient, find_patients_by_phone
 from app.modules.patients.schemas import (
     PatientCreate,
@@ -130,6 +130,8 @@ class PatientsService:
             email=email,
             dni=payload.dni,
             whatsapp_opt_in=payload.whatsapp_opt_in,
+            consent_source=ConsentSource.RECEPTION,
+            consent_user_id=self.principal.user_id,
         )
         await self.session.commit()
         await self.session.refresh(patient)

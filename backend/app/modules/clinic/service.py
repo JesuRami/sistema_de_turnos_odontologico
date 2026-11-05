@@ -20,12 +20,16 @@ from app.models import (
     Clinic,
     ConfigAction,
     ConfigEntity,
+    ConsentSource,
+    ConsentStatus,
     Patient,
     Professional,
+    ReminderChannel,
     ScheduleRule,
 )
 from app.modules.agenda.audit import apply_changes, record_config_event
 from app.modules.clinic.schemas import ClinicPolicies, ClinicPoliciesUpdate, ClinicProfile
+from app.modules.reminders.consent import ConsentService
 
 
 async def get_clinic_profile(session: AsyncSession, principal: Principal) -> ClinicProfile:
@@ -180,8 +184,14 @@ async def create_patient(
     email: str | None = None,
     dni: str | None = None,
     whatsapp_opt_in: bool = False,
+    consent_source: ConsentSource = ConsentSource.RECEPTION,
+    consent_user_id: uuid.UUID | None = None,
 ) -> Patient:
-    """Crea un paciente normalizando el teléfono a E.164 (región AR por defecto)."""
+    """Crea un paciente normalizando el teléfono a E.164 (región AR por defecto).
+
+    El opt-in de WhatsApp no se asigna acá: lo registra `ConsentService` con su `consent_source`
+    (y `consent_user_id` si lo cargó personal), que es el único escritor de ese flag (C-09).
+    """
     try:
         phone_e164 = normalize_phone_e164(phone) if phone else None
     except InvalidPhoneError:
@@ -192,6 +202,14 @@ async def create_patient(
         phone_e164=phone_e164,
         email=email,
         dni=dni,
-        whatsapp_opt_in=whatsapp_opt_in,
     )
-    return await persist_patient(session, patient)
+    await persist_patient(session, patient)
+    if whatsapp_opt_in:
+        await ConsentService(session).record(
+            patient,
+            ReminderChannel.WHATSAPP,
+            ConsentStatus.OPT_IN,
+            consent_source,
+            user_id=consent_user_id,
+        )
+    return patient

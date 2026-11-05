@@ -37,7 +37,7 @@ from app.modules.manage.schemas import (
     ManageView,
     RescheduleRequest,
 )
-from app.modules.manage.service import TOKEN_RE, ManageService
+from app.modules.manage.service import ManageService, is_well_formed
 from app.modules.reminders.invalidation import (
     ReminderInvalidator,
     get_reminder_invalidator,
@@ -62,7 +62,7 @@ _UNAVAILABLE = "manage_unavailable"
 async def _consume_token(redis: Redis, token: str, key: Callable[[str], str], spec: str) -> None:
     """Cupo por token: la clave es el SHA-256 (Redis nunca ve el token). Un token malformado
     no consume ni crea claves: el barrido lo frena el cupo por IP."""
-    if TOKEN_RE.match(token):
+    if is_well_formed(token):
         huella = hashlib.sha256(token.encode()).hexdigest()
         await consume(redis, key(huella), spec, unavailable_code=_UNAVAILABLE)
 

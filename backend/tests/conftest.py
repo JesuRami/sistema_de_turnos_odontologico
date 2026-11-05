@@ -96,7 +96,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     )
     for item in items:
         fixtures = set(getattr(item, "fixturenames", ()))
-        necesita_db = bool(fixtures & {"db_session", "temp_database", "committed_engine"})
+        necesita_db = bool(
+            fixtures & {"db_session", "temp_database", "committed_engine", "rem_engine"}
+        )
         necesita_redis = "redis_client" in fixtures
         es_integracion = item.get_closest_marker("integration") is not None
         if es_integracion:

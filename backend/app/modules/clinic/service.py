@@ -63,6 +63,7 @@ class PoliciesService:
                 "reminder_steps": clinic.reminder_steps,
                 "max_overbookings_per_day": clinic.max_overbookings_per_day,
                 "waitlist_offer_ttl_hours": clinic.waitlist_offer_ttl_hours,
+                "contact_phone": clinic.contact_phone,
             }
         )
 
@@ -71,7 +72,13 @@ class PoliciesService:
 
     async def update(self, payload: ClinicPoliciesUpdate) -> ClinicPolicies:
         clinic = await self._clinic()
-        cambios = apply_changes(clinic, payload.model_dump(include=payload.model_fields_set))
+        valores = payload.model_dump(include=payload.model_fields_set)
+        if "contact_phone" in valores:
+            try:
+                valores["contact_phone"] = normalize_phone_e164(valores["contact_phone"])
+            except InvalidPhoneError:
+                raise DomainError(422, _INVALID_PHONE) from None
+        cambios = apply_changes(clinic, valores)
         if cambios:
             await self.session.flush()
             record_config_event(

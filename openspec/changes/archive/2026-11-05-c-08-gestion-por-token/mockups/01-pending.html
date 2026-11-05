@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestionar turno — pendiente</title>
+    <link rel="stylesheet" href="../../../../design-system/tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body class="page">
+    <main class="shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Tu turno</p>
+          <h1 class="title" data-brand-name>Clínica Demo (TBD)</h1>
+        </div>
+        <span class="mock-tag">MOCKUP · datos sintéticos</span>
+      </header>
+
+      <section class="card" aria-labelledby="turno">
+        <div class="row-between">
+          <div>
+            <h2 class="appt-when" id="turno">Martes 10 de noviembre · 09:30</h2>
+            <p class="appt-meta">Dra. Ficticia Pérez · Sillón 1 · 30 minutos</p>
+          </div>
+          <span class="pill pending">Pendiente</span>
+        </div>
+        <p class="muted" style="margin-top: var(--space-3)">Hola, Ana. Confirmá tu asistencia o cambialo si no podés venir.</p>
+
+        <div class="actions">
+          <button class="btn btn-primary" type="button">Confirmar asistencia</button>
+          <button class="btn btn-secondary" type="button">Reprogramar</button>
+          <button class="btn btn-ghost-danger" type="button">Cancelar turno</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <p class="muted">
+          Podés cancelar o reprogramar sin costo hasta <strong>24 h antes</strong> (lunes 9 de noviembre, 09:30).
+          Después de ese plazo, llamanos.
+        </p>
+      </section>
+
+      <p class="footnote">Este link es personal y vence 72 h después del turno.</p>
+    </main>
+    <script src="../../../../design-system/brand.js"></script>
+  </body>
+</html>

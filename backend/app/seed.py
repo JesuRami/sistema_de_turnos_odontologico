@@ -12,6 +12,8 @@ Reglas:
   DO NOTHING`): reejecutar no duplica filas ni pisa la clave de un admin existente.
 - El sillón y el profesional de ejemplo se crean solo con la clínica; reejecutar
   sobre una clínica existente no los vuelve a crear aunque se hayan renombrado.
+- El teléfono de contacto sintético (C-08) también se carga solo al crear la clínica:
+  reejecutar no pisa el que el admin haya cambiado desde las políticas.
 - `SEED_BOOKING_DEMO=true` (opcional, C-07): la clínica nueva queda con reserva pública
   habilitada, el profesional de ejemplo activo y reservable, y una regla lunes-viernes
   09:00-13:00 de 30 min sobre el sillón (clínica demo / E2E). Sin el flag, la clínica no
@@ -37,6 +39,8 @@ from app.models import Chair, Clinic, Professional, ScheduleRule, User, UserRole
 SEED_VARS = ("SEED_CLINIC_SLUG", "SEED_CLINIC_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD")
 SAMPLE_CHAIR_NAME = "Sillón 1"
 SAMPLE_PROFESSIONAL_NAME = "Profesional Ficticio de Ejemplo"
+# Teléfono de contacto de la clínica (C-08): rango ficticio AMBA 5555, nunca uno real (regla 13).
+SAMPLE_CONTACT_PHONE = "+541155550100"
 DEMO_WEEKDAYS = range(5)  # lunes a viernes
 DEMO_SLOT_MIN = 30
 _TRUTHY = frozenset({"1", "true", "yes", "si"})
@@ -82,7 +86,9 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
     """
     created_id = await session.scalar(
         pg_insert(Clinic)
-        .values(name=config.clinic_name, slug=config.clinic_slug)
+        .values(
+            name=config.clinic_name, slug=config.clinic_slug, contact_phone=SAMPLE_CONTACT_PHONE
+        )
         .on_conflict_do_nothing(index_elements=["slug"])
         .returning(Clinic.id)
     )

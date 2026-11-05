@@ -1,5 +1,7 @@
 """Cliente Redis compartido por app (C-03): PING real y reutilización entre dependencias."""
 
+from urllib.parse import urlparse
+
 import pytest
 from app.core.redis import auth_redis_url, create_redis_client, get_redis
 from app.core.settings import Settings
@@ -50,5 +52,9 @@ def test_auth_redis_url_usa_la_base_logica_configurada(
     """WHEN REDIS_AUTH_DB=15 THEN la URL de auth apunta a la base 15 sin tocar el host."""
     url = auth_redis_url(_settings(settings))
 
-    assert url.endswith("/15")
-    assert "localhost:6379" in url
+    # El host/puerto se conservan del REDIS_URL configurado: en Compose es `redis:6379`,
+    # en local `localhost:6379`. Hardcodear `localhost` ataba el test al host de dev.
+    esperado = urlparse(str(settings.REDIS_URL))
+    obtenido = urlparse(url)
+    assert obtenido.path == "/15"
+    assert (obtenido.hostname, obtenido.port) == (esperado.hostname, esperado.port)

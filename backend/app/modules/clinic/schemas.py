@@ -21,6 +21,8 @@ ReminderSteps = Annotated[list[ReminderStep], Field(min_length=1, max_length=5)]
 CancellationWindowHours = Annotated[int, Field(ge=0, le=720)]
 MaxOverbookings = Annotated[int, Field(ge=0, le=20)]
 OfferTtlHours = Annotated[int, Field(gt=0, le=72)]
+# Teléfono crudo (C-08): el servicio lo normaliza a E.164; acá solo se acota el largo.
+ContactPhone = Annotated[str, Field(min_length=1, max_length=32)]
 
 
 class ClinicPolicies(BaseModel):
@@ -30,6 +32,8 @@ class ClinicPolicies(BaseModel):
     reminder_steps: list[ReminderStep]
     max_overbookings_per_day: int
     waitlist_offer_ttl_hours: int
+    # Teléfono de derivación pública en E.164 (C-08, RN-ON-04/RN-CX-01). `None` = sin cargar.
+    contact_phone: str | None
 
 
 class ClinicPoliciesUpdate(BaseModel):
@@ -41,6 +45,7 @@ class ClinicPoliciesUpdate(BaseModel):
     reminder_steps: ReminderSteps | None = None
     max_overbookings_per_day: MaxOverbookings | None = None
     waitlist_offer_ttl_hours: OfferTtlHours | None = None
+    contact_phone: ContactPhone | None = None
 
     @model_validator(mode="after")
     def _valida(self) -> ClinicPoliciesUpdate:

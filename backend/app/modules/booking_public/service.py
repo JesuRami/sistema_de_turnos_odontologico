@@ -208,7 +208,8 @@ class BookingPublicService:
 
     # ------------------------------------------------------- disponibilidad
 
-    def _check_range(self, clinic: PublicClinic, desde: datetime, hasta: datetime) -> None:
+    def check_range(self, clinic: PublicClinic, desde: datetime, hasta: datetime) -> None:
+        """`hasta > desde`, ≤ 14 días y dentro del horizonte de reserva; si no, `422`."""
         hoy = self.now.astimezone(clinic.tz).date()
         limite = datetime.combine(
             hoy + timedelta(days=self.horizon_days + 1), datetime.min.time(), tzinfo=clinic.tz
@@ -223,7 +224,7 @@ class BookingPublicService:
         desde: datetime,
         hasta: datetime,
     ) -> AvailabilityRead:
-        self._check_range(clinic, desde, hasta)
+        self.check_range(clinic, desde, hasta)
         profesional = await self.bookable_professional(clinic, professional_id)
         slots = await self.offerable(clinic, profesional, desde, hasta)
         return AvailabilityRead(
@@ -241,11 +242,18 @@ class BookingPublicService:
         desde: datetime,
         hasta: datetime,
         cap: int = DEFAULT_CAP,
+        exclude_appointment_id: uuid.UUID | None = None,
     ) -> list[PublicSlot]:
-        """Huecos ofrecibles de `[desde, hasta)`: la única definición, también para el 409."""
+        """Huecos ofrecibles de `[desde, hasta)`: la única definición, también para el 409.
+
+        `exclude_appointment_id` (C-08) saca de los ocupados al turno que se reprograma, así
+        su propio horario sigue ofreciéndose.
+        """
         sillones = [c.chair_id for c in profesional.chairs]
         bloqueos = await self._blocks(clinic, profesional.id, sillones, desde, hasta)
-        ocupados = await self._busy(clinic, profesional.id, sillones, desde, hasta)
+        ocupados = await self._busy(
+            clinic, profesional.id, sillones, desde, hasta, exclude_appointment_id
+        )
         return public_slots(
             profesional.chairs,
             blocks=bloqueos,
@@ -291,24 +299,26 @@ class BookingPublicService:
         chair_ids: list[uuid.UUID],
         desde: datetime,
         hasta: datetime,
+        exclude_appointment_id: uuid.UUID | None = None,
     ) -> list[Scoped]:
-        filas = await self.session.execute(
-            select(
-                Appointment.professional_id,
-                Appointment.chair_id,
-                Appointment.starts_at,
-                Appointment.occupied_until,
-            ).where(
-                Appointment.clinic_id == clinic.id,
-                or_(
-                    Appointment.professional_id == professional_id,
-                    Appointment.chair_id.in_(chair_ids),
-                ),
-                Appointment.status.in_(VIGENT_STATUSES),
-                Appointment.starts_at < hasta + _CUSHION,
-                Appointment.occupied_until > desde,
-            )
+        stmt = select(
+            Appointment.professional_id,
+            Appointment.chair_id,
+            Appointment.starts_at,
+            Appointment.occupied_until,
+        ).where(
+            Appointment.clinic_id == clinic.id,
+            or_(
+                Appointment.professional_id == professional_id,
+                Appointment.chair_id.in_(chair_ids),
+            ),
+            Appointment.status.in_(VIGENT_STATUSES),
+            Appointment.starts_at < hasta + _CUSHION,
+            Appointment.occupied_until > desde,
         )
+        if exclude_appointment_id is not None:
+            stmt = stmt.where(Appointment.id != exclude_appointment_id)
+        filas = await self.session.execute(stmt)
         return [
             Scoped(
                 None if f.professional_id == professional_id else f.chair_id,
@@ -332,7 +342,7 @@ class BookingPublicService:
         starts_at = payload.starts_at
         if starts_at <= self.now:
             raise DomainError(422, "appointment_in_past")
-        candidatos = self._candidates(clinic, profesional, starts_at)
+        candidatos = self.candidates(clinic, profesional, starts_at)
         if not candidatos:
             raise DomainError(422, "slot_not_offered")
 
@@ -376,7 +386,7 @@ class BookingPublicService:
             manage_url=f"{base}/g/{token}",
         )
 
-    def _candidates(
+    def candidates(
         self, clinic: PublicClinic, profesional: BookableProfessional, starts_at: datetime
     ) -> list[uuid.UUID]:
         """Sillones cuya grilla vigente genera `starts_at`, dentro del horizonte, por id."""

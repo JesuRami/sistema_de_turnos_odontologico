@@ -99,7 +99,8 @@ export const POLICIES: ClinicPolicies = {
     { offset_h: 24, channel: "whatsapp" }
   ],
   max_overbookings_per_day: 2,
-  waitlist_offer_ttl_hours: 4
+  waitlist_offer_ttl_hours: 4,
+  contact_phone: null
 };
 
 export interface AgendaData {

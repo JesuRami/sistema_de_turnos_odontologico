@@ -1,5 +1,13 @@
 # Override de desarrollo: hot-reload (bind-mounts solo en dev).
 services:
+  migrate:
+    # Dev: migra y siembra la clínica demo (idempotente por slug; con reserva pública
+    # habilitada solo al crearla). Monta `backend/` para aplicar migraciones nuevas sin rebuild.
+    command: ["sh", "-c", "alembic upgrade head && python -m app.seed"]
+    environment:
+      SEED_BOOKING_DEMO: "true"
+    volumes:
+      - ./backend:/srv/app/backend:ro
   api:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     volumes:
@@ -18,7 +26,9 @@ services:
       - ./frontend/src:/srv/web/src:ro
       - ./frontend/index.html:/srv/web/index.html:ro
       - ./frontend/vite.config.ts:/srv/web/vite.config.ts:ro
-    ports:
+    # En dev este contenedor corre Vite (5173), no nginx (80): se reemplaza el mapeo
+    # base 5173:80 en vez de sumarse, para no publicar un puerto muerto.
+    ports: !override
       - "5174:5173"
     healthcheck:
       # En dev corre Vite (5173), no nginx (80): el healthcheck base no aplica.

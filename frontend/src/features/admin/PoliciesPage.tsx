@@ -39,7 +39,8 @@ function PoliciesView({ p }: { p: ClinicPolicies }): JSX.Element {
     ["Ventana de cancelación", `${p.cancellation_window_hours} h`],
     ["Recordatorios", describirPasos(p.reminder_steps)],
     ["Tope de sobreturnos por profesional y día", String(p.max_overbookings_per_day)],
-    ["Vigencia de ofertas de lista de espera", `${p.waitlist_offer_ttl_hours} h`]
+    ["Vigencia de ofertas de lista de espera", `${p.waitlist_offer_ttl_hours} h`],
+    ["Teléfono de contacto", p.contact_phone ?? "Sin cargar"]
   ];
   return (
     <dl className="grid max-w-xl grid-cols-2 gap-x-4 gap-y-2 rounded bg-white p-4 text-sm shadow-sm">
@@ -83,6 +84,11 @@ function PoliciesForm({ actuales }: { actuales: ClinicPolicies }): JSX.Element {
     if (JSON.stringify(p.reminder_steps) !== JSON.stringify(actuales.reminder_steps)) {
       body.reminder_steps = p.reminder_steps;
     }
+    // El servidor lo normaliza a E.164; en v1 no se borra (vacío = sin cambios).
+    const telefono = (p.contact_phone ?? "").trim();
+    if (telefono !== "" && telefono !== actuales.contact_phone) {
+      body.contact_phone = telefono;
+    }
     if (Object.keys(body).length === 0) {
       return;
     }
@@ -116,6 +122,15 @@ function PoliciesForm({ actuales }: { actuales: ClinicPolicies }): JSX.Element {
         max={72}
         value={p.waitlist_offer_ttl_hours}
         onChange={(e) => set("waitlist_offer_ttl_hours", Number(e.target.value))}
+      />
+      <TextField
+        label="Teléfono de contacto de la clínica"
+        type="tel"
+        autoComplete="off"
+        maxLength={32}
+        hint="Se muestra a los pacientes cuando tienen que llamar (link vencido o cancelación fuera de plazo)."
+        value={p.contact_phone ?? ""}
+        onChange={(e) => set("contact_phone", e.target.value)}
       />
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Pasos de recordatorio</legend>

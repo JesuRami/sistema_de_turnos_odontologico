@@ -100,6 +100,8 @@ export interface ClinicPolicies {
   reminder_steps: ReminderStep[];
   max_overbookings_per_day: number;
   waitlist_offer_ttl_hours: number;
+  /** Teléfono de derivación pública en E.164 (C-08); `null` = sin cargar. */
+  contact_phone: string | null;
 }
 
 // ---------------------------------------------------------------- turnos (C-05)

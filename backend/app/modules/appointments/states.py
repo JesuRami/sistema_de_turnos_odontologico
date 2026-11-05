@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import DomainError
 from app.models import (
+    ActorType,
     Appointment,
     AppointmentEventType,
     AppointmentStatus,
@@ -62,6 +63,8 @@ for (_, _destino), _regla in ALLOWED.items():
     TARGET_ROLES[_destino] = TARGET_ROLES.get(_destino, frozenset()) | _regla.roles
 
 TERMINAL = frozenset({S.CANCELLED, S.ABSENT, S.NO_SHOW})
+# C-08: el paciente con su token solo confirma o cancela; la asistencia es del personal.
+PATIENT_TARGETS = frozenset({S.CONFIRMED, S.CANCELLED})
 
 
 def _check_guard(
@@ -86,6 +89,9 @@ def check_transition(
     tz: ZoneInfo,
 ) -> None:
     """Valida rol → par permitido → guarda temporal, sin mutar nada."""
+    if actor.type is ActorType.PATIENT_TOKEN and target not in PATIENT_TARGETS:
+        # Sin roles no aplica el chequeo de rol: el destino se acota por tipo de actor.
+        raise DomainError(409, "invalid_transition")
     if actor.roles and not (actor.roles & TARGET_ROLES.get(target, frozenset())):
         raise DomainError(403, "forbidden_role")
     regla = ALLOWED.get((appointment.status, target))

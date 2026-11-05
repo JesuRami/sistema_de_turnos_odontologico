@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestionar turno — reprogramar</title>
+    <link rel="stylesheet" href="../../../../design-system/tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body class="page">
+    <main class="shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Tu turno</p>
+          <h1 class="title">Elegí un nuevo horario</h1>
+        </div>
+        <span class="mock-tag">MOCKUP · datos sintéticos</span>
+      </header>
+
+      <section class="card">
+        <p class="appt-meta" style="margin: 0">Turno actual</p>
+        <p class="appt-when" style="font-size: var(--font-size-lg)">Martes 10 de noviembre · 09:30</p>
+        <p class="appt-meta">Dra. Ficticia Pérez · 30 minutos</p>
+      </section>
+
+      <section class="card" aria-labelledby="dias">
+        <h2 id="dias">Días disponibles</h2>
+        <p class="hint">Solo se muestran horarios libres de la misma profesional.</p>
+
+        <div class="days" role="group" aria-label="Días disponibles">
+          <button class="day" type="button" aria-pressed="false"><span>Lun</span><strong>09</strong></button>
+          <button class="day" type="button" aria-pressed="true"><span>Mar</span><strong>10</strong></button>
+          <button class="day" type="button" aria-pressed="false"><span>Mié</span><strong>11</strong></button>
+          <button class="day" type="button" aria-pressed="false"><span>Jue</span><strong>12</strong></button>
+        </div>
+
+        <div class="slots" role="group" aria-label="Horarios del martes 10">
+          <button class="slot" type="button" disabled>08:30</button>
+          <button class="slot" type="button" aria-pressed="false">09:00</button>
+          <button class="slot" type="button" aria-pressed="true">10:30</button>
+          <button class="slot" type="button" aria-pressed="false">11:00</button>
+          <button class="slot" type="button" aria-pressed="false">11:30</button>
+          <button class="slot" type="button" aria-pressed="false">15:00</button>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" type="button">Confirmar 10:30</button>
+          <a class="btn btn-secondary" href="01-pending.html">Volver sin cambios</a>
+        </div>
+      </section>
+
+      <p class="footnote">Si el horario se ocupa mientras elegís, te vamos a ofrecer otro sin perder el turno.</p>
+    </main>
+    <script src="../../../../design-system/brand.js"></script>
+  </body>
+</html>

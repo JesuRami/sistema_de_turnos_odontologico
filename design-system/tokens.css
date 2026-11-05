@@ -1,0 +1,124 @@
+/*
+ * Tokens visuales — Revision 1 (provisional, Approval: pending).
+ * Derivados de frontend/tailwind.config.js y frontend/src/shared/ui/index.tsx.
+ * Consumir SIEMPRE estas variables; no copiar hex en mockups ni componentes.
+ */
+
+:root {
+  /* --- Color: marca (paleta `dental`) --- */
+  --color-dental-900: #083f3e;
+  --color-dental-700: #0b6463;
+  --color-dental-600: #0e7c7b;
+  --color-dental-200: #a9d8d4;
+  --color-dental-100: #d5ecea;
+  --color-dental-50: #eef7f6;
+
+  /* --- Color: superficie --- */
+  --color-surface: #ffffff;
+  --color-canvas: #f7f5ef; /* enamel */
+  --color-border: rgba(14, 124, 123, 0.25);
+  --color-border-strong: rgba(14, 124, 123, 0.45);
+
+  /* --- Color: texto --- */
+  --color-text: #083f3e;
+  --color-text-muted: rgba(8, 63, 62, 0.72);
+  --color-text-inverse: #ffffff;
+
+  /* --- Color: semántico --- */
+  --color-danger-700: #be123c;
+  --color-danger-800: #9f1239;
+  --color-danger-bg: #fff1f2;
+  --color-danger-border: #fda4af;
+  --color-info-900: #0c4a6e;
+  --color-info-bg: #f0f9ff;
+  --color-info-border: #7dd3fc;
+  --color-success-900: #064e3b;
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #6ee7b7;
+  --color-warning-900: #78350f;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fcd34d;
+
+  /* --- Tipografía --- */
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-size-xs: 0.75rem;   /* 12px */
+  --font-size-sm: 0.875rem;  /* 14px */
+  --font-size-base: 1rem;    /* 16px */
+  --font-size-lg: 1.125rem;  /* 18px */
+  --font-size-xl: 1.25rem;   /* 20px */
+  --font-size-2xl: 1.5rem;   /* 24px */
+  --font-size-3xl: 2rem;     /* 32px */
+  --line-tight: 1.25;
+  --line-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* --- Espaciado (base 4px) --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* --- Radios --- */
+  --radius-sm: 0.25rem;  /* botones y campos */
+  --radius-md: 0.5rem;   /* tarjetas y diálogos */
+  --radius-lg: 0.75rem;  /* paneles */
+  --radius-full: 9999px;
+
+  /* --- Sombras --- */
+  --shadow-sm: 0 1px 2px rgba(8, 63, 62, 0.06);
+  --shadow-md: 0 2px 8px rgba(8, 63, 62, 0.08);
+  --shadow-lg: 0 12px 32px rgba(8, 63, 62, 0.16);
+
+  /* --- Foco --- */
+  --focus-ring: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-dental-600);
+  --focus-ring-inset: inset 0 0 0 2px var(--color-dental-600);
+
+  /* --- Movimiento --- */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* --- Layout --- */
+  --content-max: 64rem;
+  --public-max: 28rem; /* mobile-first de la reserva pública */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-normal);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}

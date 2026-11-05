@@ -1,0 +1,26 @@
+# Contexto de build del backend: solo se copian requirements.txt, backend/ y alembic.ini.
+# Excluir todo lo pesado o sensible evita contextos de cientos de MB y filtraciones.
+.git
+.gitignore
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+# Secretos: se inyectan en runtime con env_file, nunca en la imagen (regla dura 6).
+.env
+.env.*
+!.env.example
+# Frontend y docs no participan del build del backend.
+frontend
+node_modules
+docs
+openspec
+.agents
+.atl
+*.md
+!requirements.txt

@@ -40,6 +40,7 @@ async def test_clinica_nueva_expone_defaults_sanos(
         "reminder_steps": PASOS_DEFAULT,
         "max_overbookings_per_day": 2,
         "waitlist_offer_ttl_hours": 4,
+        "contact_phone": None,  # C-08
     }
 
 

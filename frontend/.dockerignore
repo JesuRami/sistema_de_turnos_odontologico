@@ -1,0 +1,10 @@
+# Contexto de build del frontend (./frontend).
+# node_modules del host (Windows) NO debe copiarse sobre el instalado en la imagen
+# Linux: rompe los binarios nativos de esbuild/rollup y Vite no arranca.
+node_modules
+dist
+test-results
+playwright-report
+e2e/.state.json
+*.log
+.DS_Store

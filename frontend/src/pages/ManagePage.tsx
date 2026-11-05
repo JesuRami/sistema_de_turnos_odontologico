@@ -1,15 +1,8 @@
-import { useParams } from "react-router-dom";
+import ManageFlow from "../features/manage/ManageFlow";
 
+/** Ruta pública `/g/:token` (C-08): solo compone; el flujo vive en `features/manage`. */
 function ManagePage(): JSX.Element {
-  const { token } = useParams<{ token: string }>();
-  return (
-    <main className="min-h-screen bg-enamel px-6 py-10">
-      <h1 className="text-xl font-semibold text-dental-900">Gestionar mi turno</h1>
-      <p className="mt-2 text-sm">
-        Token: {token} — confirmación y reprogramación (C-08).
-      </p>
-    </main>
-  );
+  return <ManageFlow />;
 }
 
 export default ManagePage;

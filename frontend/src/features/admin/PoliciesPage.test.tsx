@@ -96,3 +96,43 @@ describe("PoliciesPage", () => {
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 });
+
+describe("PoliciesPage — teléfono de contacto (C-08)", () => {
+  it("el admin carga el teléfono y ve el valor normalizado", async () => {
+    let actuales: ClinicPolicies = { ...POLICIES, contact_phone: null };
+    const cuerpos: unknown[] = [];
+    server.use(
+      http.get("/api/clinic/policies", () => HttpResponse.json(actuales)),
+      http.patch("/api/clinic/policies", async ({ request }) => {
+        const body = (await request.json()) as Partial<ClinicPolicies>;
+        cuerpos.push(body);
+        actuales = { ...actuales, contact_phone: "+541155550100" };
+        return HttpResponse.json(actuales);
+      }),
+      ...agendaHandlers()
+    );
+    const { user } = renderWithProviders(<PoliciesPage />, {
+      session: await loggedSession(makeUser("admin"))
+    });
+
+    const campo = await screen.findByLabelText("Teléfono de contacto de la clínica");
+    await user.type(campo, "011 5555-0100");
+    await user.click(screen.getByRole("button", { name: "Guardar políticas" }));
+
+    expect(await screen.findByText("Políticas guardadas")).toBeInTheDocument();
+    expect(cuerpos).toEqual([{ contact_phone: "011 5555-0100" }]);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Teléfono de contacto de la clínica")).toHaveValue("+541155550100")
+    );
+  });
+
+  it("recepción no ve el campo editable", async () => {
+    server.use(...agendaHandlers({ policies: { ...POLICIES, contact_phone: "+541155550100" } }));
+    renderWithProviders(<PoliciesPage />, {
+      session: await loggedSession(makeUser("recepcion"))
+    });
+
+    expect(await screen.findByText("+541155550100")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Teléfono de contacto de la clínica")).not.toBeInTheDocument();
+  });
+});

@@ -24,6 +24,7 @@ from app.modules.appointments.router import router as appointments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.booking_public.router import router as booking_public_router
 from app.modules.clinic.router import router as clinic_router
+from app.modules.manage.router import router as manage_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.patients.router import router as patients_router
 from app.modules.reminders.router import router as reminders_router
@@ -145,6 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         appointments_router,
         patients_router,
         booking_public_router,
+        manage_router,
         waiting_list_router,
         reminders_router,
         notifications_router,

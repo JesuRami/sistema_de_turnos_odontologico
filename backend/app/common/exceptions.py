@@ -8,10 +8,15 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
-# La reserva pública es anónima y su cuerpo lleva datos personales: el 422 por defecto de
-# FastAPI ecoa `input` (regla 13), así que bajo este prefijo solo se informan nombres de campo.
-_PUBLIC_PREFIX = "/api/booking/"
+# La reserva y la gestión públicas son anónimas y su cuerpo lleva datos personales: el 422 por
+# defecto de FastAPI ecoa `input` (regla 13), así que bajo estos prefijos solo se informan
+# nombres de campo.
+_PUBLIC_PREFIXES = ("/api/booking/", "/api/manage/")
 _FIELD_RE = re.compile(r"^[A-Za-z0-9_.\[\]]{1,64}$")
+# La gestión por token lleva el token en el path y datos del turno: ninguna respuesta (tampoco
+# un error) se cachea ni filtra su URL por `Referer` (C-08, D2).
+_PRIVATE_PREFIX = "/api/manage/"
+PRIVATE_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 
 
 class DomainError(Exception):
@@ -45,24 +50,30 @@ def _public_fields(exc: RequestValidationError) -> list[str]:
     return campos
 
 
+def _headers_for(request: Request, headers: dict[str, str] | None) -> dict[str, str] | None:
+    if not request.url.path.startswith(_PRIVATE_PREFIX):
+        return headers
+    return {**PRIVATE_HEADERS, **(headers or {})}
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Registra handlers que devuelven siempre `{"detail": ...}`."""
 
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError) -> JSONResponse:
-        _ = request
         content: dict[str, Any] = {**(exc.extra or {}), "detail": exc.detail}
         return JSONResponse(
             status_code=exc.status_code,
             content=content,
-            headers=exc.headers,
+            headers=_headers_for(request, exc.headers),
         )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(request: Request, exc: RequestValidationError) -> Response:
-        if request.url.path.startswith(_PUBLIC_PREFIX):
+        if request.url.path.startswith(_PUBLIC_PREFIXES):
             return JSONResponse(
                 status_code=422,
                 content={"detail": "invalid_request", "fields": _public_fields(exc)},
+                headers=_headers_for(request, None),
             )
         return await request_validation_exception_handler(request, exc)

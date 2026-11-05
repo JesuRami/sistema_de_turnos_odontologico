@@ -65,8 +65,10 @@ def test_settings_falla_rapido_sin_requeridas() -> None:
 
     backup = {k: os.environ.pop(k, None) for k in REQUIRED}
     try:
+        # `_env_file=None`: el test aísla la fuente entorno. Sin esto, un `.env` en el
+        # cwd (dev local o Compose) rellena las claves y el test pasaría en falso.
         with pytest.raises(ValidationError) as exc_info:
-            Settings()  # type: ignore[call-arg]
+            Settings(_env_file=None)  # type: ignore[call-arg]
         message = str(exc_info.value)
         assert any(k in message for k in REQUIRED)
     finally:

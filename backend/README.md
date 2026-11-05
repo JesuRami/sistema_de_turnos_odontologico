@@ -5,6 +5,12 @@ corren desde la raíz del repo salvo que se indique otra cosa.
 
 ## Base de datos y migraciones
 
+> **Con Docker (dev) no hace falta correr nada a mano**: `.\dev.ps1` (raíz del repo) levanta
+> el stack y el servicio `migrate` aplica `alembic upgrade head` y el seed idempotente de la
+> clínica demo antes de que arranquen `api` y `worker`. Después de traer un change con
+> migraciones nuevas alcanza con volver a correr `.\dev.ps1`; `.\dev.ps1 reset` borra los
+> datos de dev y arranca de cero. Los comandos de abajo son para correr fuera de Docker.
+
 ```bash
 # DATABASE_URL acepta postgresql:// o postgresql+asyncpg:// (se fuerza asyncpg)
 alembic upgrade head      # c01_base -> c02_core_models -> c03_auth_rbac -> c04_agenda_config
@@ -314,6 +320,98 @@ devuelve `get_bot_guard`, sin tocar el schema ni el router.
 c13_event_slot` quita la columna y el índice; los links de gestión ya emitidos dejan
 de servir. Deshabilitar `clinic.booking_enabled` corta la superficie pública sin
 redeploy.
+
+## Gestión por token (C-08)
+
+Superficie anónima, sin `Principal` ni sesión: el turno y su clínica se resuelven
+**solo por el token** del link `/g/{token}` que emitió la reserva (C-07), y todo se
+filtra por el `clinic_id` del turno.
+
+| Método | Ruta | Uso |
+|---|---|---|
+| `GET` | `/api/manage/{token}` | vista de gestión |
+| `GET` | `/api/manage/{token}/availability?from&to` | huecos del mismo profesional para reprogramar |
+| `PATCH` | `/api/manage/{token}` | `{"action": "confirm"}` \| `{"action": "cancel", "reason"?, "note"?}` \| `{"action": "reschedule", "starts_at"}` |
+
+- **Resolución**: formato `^[A-Za-z0-9_-]{43}$` (si no, 404 sin tocar la base) →
+  `sha256(token)` → igualdad contra `uq_appointment_manage_token_hash`. El token
+  **nunca** se compara ni se guarda en claro; no "optimizar" a comparar el token.
+- **Vigencia**: `expires_at = ends_at + MANAGE_TOKEN_TTL_H` (72 h, calculado en cada
+  request, sin columna). Antes de `starts_at` el link permite acciones; entre
+  `starts_at` y `expires_at` es solo lectura; después, `410`. Cambiar el setting
+  aplica a links ya emitidos.
+- **Vista mínima**: clínica (nombre, teléfono, zona, slug), nombre de pila del
+  paciente, inicio/fin en la zona de la clínica, profesional, estado, ventana,
+  `actions{can_confirm, can_cancel, can_reschedule, blocked_reason}` y el catálogo
+  de motivos. Sin ids de turno/paciente/sillón/profesional ni contacto del paciente.
+- **Confirmar**: `pending → confirmed` con `actor_type=patient_token`.
+- **Cancelar**: solo `pending|confirmed`, antes del inicio y con al menos
+  `cancellation_window_hours` de anticipación. La causa guardada es siempre
+  `paciente` (C-13 no cambia); el motivo fino va en el evento como `patient_reason`;
+  la nota (≤ 200) se guarda en `cancellation_note` solo con `otro` y **nunca** entra
+  al evento, a logs ni a exportaciones.
+- **Reprogramar**: mismo profesional, mismo `appointment_id`, misma duración, solo a
+  inicios de la grilla y dentro del horizonte; un intento por sillón candidato en un
+  savepoint y el `EXCLUDE` como barrera final. Conserva origen y hash del token.
+  **No se rota el token** (decisión 2026-11-05; ver `knowledge-base/10_preguntas_abiertas.md`).
+- **Idempotencia por estado**: repetir una acción ya aplicada responde 200 y escribe
+  un evento `updated` con `{idempotent_replay: true, action}`; nunca un segundo
+  `confirmed`/`cancelled`/`rescheduled`.
+- **Orden de locks**: profesional → sillones → turno, igual que recepción (lo
+  contrario produce deadlock con una reprogramación simultánea de recepción).
+- **Recordatorios**: `ReminderInvalidator` (`app/modules/reminders/invalidation.py`)
+  se invoca dentro del savepoint de cada mutación (no en los replays); v1 es no-op y
+  C-09 reemplaza `get_reminder_invalidator`.
+- **Cabeceras**: `Cache-Control: no-store` y `Referrer-Policy: no-referrer` en todas
+  las respuestas, también en los errores.
+
+### Códigos de error de gestión
+
+| Código | Cuándo |
+|---|---|
+| `404 manage_link_not_found` | token malformado o desconocido (cuerpo idéntico) |
+| `410 manage_link_expired` | pasó `ends_at + TTL`; trae `clinic{name, phone}` para la pantalla de contacto |
+| `409 invalid_transition` | estado no operable (p. ej. confirmar un cancelado, cancelar un presente) |
+| `409 appointment_started` | confirmar un turno que ya empezó |
+| `422 appointment_in_past` | cancelar un turno ya iniciado, o reprogramar a un inicio no futuro |
+| `409 cancellation_window_closed` | cancelar o reprogramar con menos horas que la ventana (derivar a la clínica) |
+| `422 slot_not_offered` | inicio fuera de grilla/horizonte, o profesional ya no reservable online |
+| `409 slot_taken` | hueco ocupado: `{alternatives:[{starts_at, ends_at}]}` (≤ 3, sin `conflicts`, sillón ni profesional) |
+| `409 appointment_changed` | recepción movió el turno mientras se procesaba la acción |
+| `422 invalid_range` | disponibilidad con `to <= from`, > 14 días o más allá del horizonte |
+| `422 invalid_request` | cuerpo inválido: solo nombres de campo, nunca valores (la nota no se ecoa) |
+| `429 rate_limited` | cupo agotado, con `Retry-After` |
+| `503 manage_unavailable` | Redis caído (falla cerrada) |
+
+### Cupos de gestión
+
+`MANAGE_READ_IP_RATE_LIMIT` (`120/60s`) y `MANAGE_WRITE_IP_RATE_LIMIT` (`30/60s`) se
+consumen antes de resolver el token (frenan el barrido); `MANAGE_READ_TOKEN_RATE_LIMIT`
+(`60/60s`) y `MANAGE_WRITE_TOKEN_RATE_LIMIT` (`10/60s`) usan el **SHA-256** del token
+como clave (Redis nunca ve el token) y solo se consumen con un token bien formado.
+Las escrituras se consumen antes de validar el cuerpo (un 422 gasta).
+
+### Transporte del token y access log (requisito de despliegue)
+
+El token va en el **path** (no en query string ni header): es el contrato del link
+`/g/{token}` ya emitido. La app no loguea el path ni el token, pero el **access log**
+de uvicorn y de nginx sí registraría la URL: en producción hay que **redactar
+`/g/` y `/api/manage/`** con un formato de log propio (p. ej. en nginx un `map` que
+reemplace el segmento del token por `***`, o deshabilitar el access log de esas
+`location`), y el healthcheck del despliegue no debe tocar esas rutas.
+
+### Teléfono de contacto de la clínica
+
+`clinic.contact_phone` (E.164, opcional) se edita con `PATCH /api/clinic/policies`
+(`contact_phone`, solo admin; se normaliza con la región AR; inválido o `null` → 422).
+Lo muestran las pantallas que derivan a la clínica (ventana cerrada, link vencido).
+El seed lo carga con un número ficticio solo al crear la clínica.
+
+### Revisión `c08_manage_token` (C-08)
+
+`ADD COLUMN contact_phone text` (nullable, sin default: metadata-only) y CHECK de
+largo `NOT VALID` → `VALIDATE` (regla 11). `appointment` no cambia. El downgrade
+quita la columna y pierde el teléfono cargado.
 
 ## Seed del tenant inicial
 

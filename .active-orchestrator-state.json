@@ -1,4 +1,4 @@
-﻿{
+{
   "discovery": {
     "casos_de_uso": [
       "Como paciente, quiero reservar un turno online 24/7 sin llamar",
@@ -178,7 +178,7 @@
   },
   "owner": "active-orchestrator",
   "step": "done",
-  "version": 4,
+  "version": 5,
   "registry": {
     "created_by": "skill-registry",
     "file": ".atl/skill-registry.md",
@@ -327,5 +327,16 @@
       "pinned-images-healthcheck",
       "no-real-patient-data"
     ]
+  },
+  "visual_design": {
+    "created_by": "design-system",
+    "mode": "system-and-mockups",
+    "status": "approved",
+    "revision": 1,
+    "path": "design-system/README.md",
+    "decided_at": "2026-11-05",
+    "decided_by": "user",
+    "approved_at": "2026-11-05",
+    "approved_by": "user"
   }
 }

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Design system — Turnos Odontológicos (provisional)</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <style>
+      .wrap { max-width: var(--content-max); margin: 0 auto; padding: var(--space-8) var(--space-4) var(--space-16); }
+      .top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); justify-content: space-between; padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border); }
+      .brand { display: flex; align-items: center; gap: var(--space-3); }
+      .brand img { width: 200px; height: auto; }
+      .eyebrow { font-size: var(--font-size-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-muted); margin: 0; }
+      .h1 { font-size: var(--font-size-2xl); font-weight: var(--weight-semibold); margin: var(--space-1) 0 0; line-height: var(--line-tight); }
+      .badges { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+      .badge { font-size: var(--font-size-xs); padding: 2px var(--space-2); border-radius: var(--radius-full); border: 1px solid var(--color-border-strong); background: var(--color-surface); }
+      .badge.warn { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning-900); }
+
+      .grid { display: grid; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: var(--space-8); }
+      .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); box-shadow: var(--shadow-sm); }
+      .card h2 { font-size: var(--font-size-base); font-weight: var(--weight-semibold); margin: 0 0 var(--space-1); }
+      .card p.help { margin: 0 0 var(--space-4); font-size: var(--font-size-sm); color: var(--color-text-muted); }
+      .full { grid-column: 1 / -1; }
+
+      .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+      .stack { display: grid; gap: var(--space-3); }
+
+      /* Botones */
+      .btn { font: inherit; font-size: var(--font-size-sm); font-weight: var(--weight-medium); line-height: 1.2; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; transition: background var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+      .btn-primary { background: var(--color-dental-600); color: var(--color-text-inverse); }
+      .btn-primary:hover { background: var(--color-dental-700); }
+      .btn-secondary { background: var(--color-surface); color: var(--color-dental-900); border-color: var(--color-border-strong); }
+      .btn-secondary:hover { background: var(--color-dental-50); }
+      .btn-danger { background: var(--color-danger-700); color: var(--color-text-inverse); }
+      .btn-danger:hover { background: var(--color-danger-800); }
+      .btn-ghost { background: transparent; color: var(--color-dental-900); }
+      .btn-ghost:hover { background: var(--color-dental-50); }
+      /* Destructivo sin peso visual de botón sólido: el rojo solo aparece en el texto. */
+      .btn-ghost-danger { background: transparent; color: var(--color-danger-700); }
+      .btn-ghost-danger:hover { background: var(--color-danger-bg); }
+      .btn:disabled { cursor: not-allowed; opacity: 0.5; }
+      .btn-block { width: 100%; }
+
+      /* Campos */
+      .field { display: grid; gap: var(--space-1); font-size: var(--font-size-sm); }
+      .field label { font-weight: var(--weight-medium); }
+      .control { font: inherit; font-size: var(--font-size-sm); padding: var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); width: 100%; }
+      .control::placeholder { color: var(--color-text-muted); }
+      .control:focus { outline: none; border-color: var(--color-dental-600); box-shadow: var(--focus-ring-inset); }
+      .control[aria-invalid="true"] { border-color: var(--color-danger-700); }
+      .hint { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+      .error { font-size: var(--font-size-xs); color: var(--color-danger-700); font-weight: var(--weight-medium); }
+
+      /* Alertas */
+      .alert { border: 1px solid; border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); }
+      .alert-error { background: var(--color-danger-bg); border-color: var(--color-danger-border); color: var(--color-danger-800); }
+      .alert-info { background: var(--color-info-bg); border-color: var(--color-info-border); color: var(--color-info-900); }
+      .alert-success { background: var(--color-success-bg); border-color: var(--color-success-border); color: var(--color-success-900); }
+
+      /* Estados */
+      .pill { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--font-size-xs); font-weight: var(--weight-medium); padding: 2px var(--space-2); border-radius: var(--radius-full); border: 1px solid var(--color-border); background: var(--color-dental-50); color: var(--color-dental-900); }
+      .pill::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
+      .pill.pending { background: var(--color-warning-bg); color: var(--color-warning-900); border-color: var(--color-warning-border); }
+      .pill.confirmed { background: var(--color-success-bg); color: var(--color-success-900); border-color: var(--color-success-border); }
+      .pill.present { background: var(--color-dental-100); color: var(--color-dental-900); border-color: var(--color-dental-200); }
+      .pill.absent { background: var(--color-danger-bg); color: var(--color-danger-800); border-color: var(--color-danger-border); }
+      .pill.cancelled { background: #f5f5f4; color: #44403c; border-color: #d6d3d1; }
+
+      /* Turno */
+      .appt { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); display: grid; gap: var(--space-3); }
+      .appt__head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; flex-wrap: wrap; }
+      .appt__when { font-size: var(--font-size-lg); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; margin: 0; }
+      .appt__meta { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+      .appt__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+      /* Pasos */
+      .steps { display: flex; flex-wrap: wrap; gap: var(--space-2); counter-reset: paso; }
+      .steps li { list-style: none; display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); color: var(--color-text-muted); }
+      .steps li::before { counter-increment: paso; content: counter(paso); width: 1.5rem; height: 1.5rem; border-radius: var(--radius-full); border: 1px solid var(--color-border-strong); display: grid; place-items: center; font-size: var(--font-size-xs); background: var(--color-surface); }
+      .steps li[aria-current="step"] { color: var(--color-text); font-weight: var(--weight-semibold); }
+      .steps li[aria-current="step"]::before { background: var(--color-dental-600); border-color: var(--color-dental-600); color: var(--color-text-inverse); }
+
+      /* Tabla */
+      table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+      caption { text-align: left; font-size: var(--font-size-xs); color: var(--color-text-muted); padding-bottom: var(--space-2); }
+      th, td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--color-border); }
+      th { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-muted); }
+      td.num { font-variant-numeric: tabular-nums; }
+
+      /* Swatches */
+      .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: var(--space-2); }
+      .swatch { border-radius: var(--radius-sm); border: 1px solid var(--color-border); overflow: hidden; font-size: var(--font-size-xs); }
+      .swatch span { display: block; height: 3.5rem; }
+      .swatch code { display: block; padding: var(--space-1) var(--space-2); background: var(--color-surface); }
+
+      .type div { padding: var(--space-1) 0; border-bottom: 1px dashed var(--color-border); }
+      .type small { display: block; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+
+      .note { margin-top: var(--space-8); padding: var(--space-4); border-left: 3px solid var(--color-dental-600); background: var(--color-dental-50); border-radius: var(--radius-sm); font-size: var(--font-size-sm); }
+
+      @media (max-width: 420px) {
+        .wrap { padding: var(--space-5) var(--space-3) var(--space-12); }
+        .top { align-items: flex-start; }
+        .brand { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+        .brand img { width: 190px; }
+        .h1 { font-size: var(--font-size-xl); }
+        .appt__actions { display: grid; grid-template-columns: 1fr; }
+        .appt__actions .btn { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div class="brand">
+          <img src="assets/logo.svg" alt="Logo provisional de la clínica" />
+          <div>
+            <p class="eyebrow">Design system</p>
+            <h1 class="h1" data-brand-name>Clínica Demo (TBD)</h1>
+          </div>
+        </div>
+        <div class="badges">
+          <span class="badge">Revision 1</span>
+          <span class="badge warn">Approval: pending</span>
+        </div>
+      </header>
+
+      <p class="note">
+        Fundación provisional derivada de la UI existente (C-06 agenda, C-07 reserva pública).
+        El nombre y el logo son <strong>(TBD)</strong>: no representan una marca aprobada.
+      </p>
+
+      <div class="grid">
+        <section class="card">
+          <h2>Botones</h2>
+          <p class="help">Acción primaria única por vista. Foco visible por teclado.</p>
+          <div class="stack">
+            <div class="row">
+              <button class="btn btn-primary" type="button">Confirmar turno</button>
+              <button class="btn btn-secondary" type="button">Reprogramar</button>
+            </div>
+            <div class="row">
+              <button class="btn btn-danger" type="button">Cancelar turno</button>
+              <button class="btn btn-ghost" type="button">Volver</button>
+              <button class="btn btn-primary" type="button" disabled>Enviando…</button>
+            </div>
+            <button class="btn btn-primary btn-block" type="button">Confirmar asistencia</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Campos</h2>
+          <p class="help">Label siempre visible; el error se asocia al campo.</p>
+          <div class="stack">
+            <div class="field">
+              <label for="nombre">Nombre y apellido</label>
+              <input class="control" id="nombre" placeholder="Nombre sintético" />
+              <span class="hint">Como figura en el DNI.</span>
+            </div>
+            <div class="field">
+              <label for="tel">Teléfono</label>
+              <input class="control" id="tel" aria-invalid="true" value="+54 11 0000 0000" aria-describedby="tel-error" />
+              <span class="error" id="tel-error">Ingresá un número al que podamos escribirte.</span>
+            </div>
+            <div class="field">
+              <label for="motivo">Motivo</label>
+              <select class="control" id="motivo">
+                <option>No puedo asistir</option>
+                <option>Enfermedad</option>
+                <option>Viaje</option>
+                <option>Otro</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Alertas</h2>
+          <p class="help">El error usa <code>role="alert"</code>; los demás, <code>role="status"</code>.</p>
+          <div class="stack">
+            <div class="alert alert-error" role="alert">Ese horario se acaba de ocupar. Elegí otro.</div>
+            <div class="alert alert-info" role="status">El link vence 72 h después del turno.</div>
+            <div class="alert alert-success" role="status">Turno confirmado. Te esperamos.</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Estados de turno</h2>
+          <p class="help">El color acompaña al texto; nunca lo reemplaza.</p>
+          <div class="row">
+            <span class="pill pending">Pendiente</span>
+            <span class="pill confirmed">Confirmado</span>
+            <span class="pill present">Presente</span>
+            <span class="pill absent">Ausente</span>
+            <span class="pill cancelled">Cancelado</span>
+          </div>
+        </section>
+
+        <section class="card full">
+          <h2>Tarjeta de turno — página de gestión (C-08)</h2>
+          <p class="help">Una acción primaria (confirmar) y las destructivas separadas a la derecha.</p>
+          <div class="appt">
+            <div class="appt__head">
+              <div>
+                <p class="appt__when">Martes 10 de noviembre · 09:30</p>
+                <p class="appt__meta">Dra. Ficticia Pérez · Sillón 1 · 30 min</p>
+              </div>
+              <span class="pill pending">Pendiente</span>
+            </div>
+            <div class="appt__actions">
+              <button class="btn btn-primary" type="button">Confirmar asistencia</button>
+              <button class="btn btn-secondary" type="button">Reprogramar</button>
+              <button class="btn btn-ghost-danger" type="button">Cancelar</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Pasos</h2>
+          <p class="help">El paso actual se anuncia con <code>aria-current="step"</code>.</p>
+          <ol class="steps">
+            <li aria-current="step">Día</li>
+            <li>Hora</li>
+            <li>Datos</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>Tabla</h2>
+          <p class="help">Números tabulares; sin bordes verticales.</p>
+          <table>
+            <caption>Turnos del día (datos sintéticos)</caption>
+            <thead>
+              <tr><th scope="col">Hora</th><th scope="col">Paciente</th><th scope="col">Estado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="num">09:00</td><td>Paciente Ficticio A</td><td>Presente</td></tr>
+              <tr><td class="num">09:30</td><td>Paciente Ficticio B</td><td>Pendiente</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card full">
+          <h2>Paleta</h2>
+          <p class="help">Tokens de <code>tokens.css</code>; no usar hex directo en componentes.</p>
+          <div class="swatches">
+            <div class="swatch"><span style="background: var(--color-dental-900)"></span><code>dental-900</code></div>
+            <div class="swatch"><span style="background: var(--color-dental-700)"></span><code>dental-700</code></div>
+            <div class="swatch"><span style="background: var(--color-dental-600)"></span><code>dental-600</code></div>
+            <div class="swatch"><span style="background: var(--color-dental-200)"></span><code>dental-200</code></div>
+            <div class="swatch"><span style="background: var(--color-dental-100)"></span><code>dental-100</code></div>
+            <div class="swatch"><span style="background: var(--color-dental-50)"></span><code>dental-50</code></div>
+            <div class="swatch"><span style="background: var(--color-canvas)"></span><code>enamel</code></div>
+            <div class="swatch"><span style="background: var(--color-danger-700)"></span><code>danger-700</code></div>
+          </div>
+        </section>
+
+        <section class="card full">
+          <h2>Tipografía</h2>
+          <p class="help">Inter con fallback a <code>system-ui</code>. Una sola familia.</p>
+          <div class="type">
+            <div style="font-size: var(--font-size-3xl); font-weight: var(--weight-semibold)">Turnos de hoy <small>3xl · 32px · semibold</small></div>
+            <div style="font-size: var(--font-size-xl); font-weight: var(--weight-semibold)">Confirmá tu asistencia <small>xl · 20px · semibold</small></div>
+            <div style="font-size: var(--font-size-base)">Texto base para instrucciones y párrafos cortos. <small>base · 16px</small></div>
+            <div style="font-size: var(--font-size-sm); color: var(--color-text-muted)">Texto secundario y metadatos del turno. <small>sm · 14px · muted</small></div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <script src="brand.js"></script>
+  </body>
+</html>

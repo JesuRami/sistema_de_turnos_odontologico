@@ -35,6 +35,27 @@ services:
       retries: 5
       start_period: 10s
 
+  # Tarea de una sola ejecución: deja la base en la última migración antes de que arranquen
+  # api y worker (así un `up` nunca corre código nuevo sobre un schema viejo). Termina y sale:
+  # un healthcheck no aplica a un proceso que no queda vivo; `api`/`worker` esperan su
+  # `service_completed_successfully`. En dev, compose.override.yaml le suma el seed.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://turnos:${DB_PASSWORD:-changeme}@db:5432/turnos
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: "no"
+
   api:
     build:
       context: .
@@ -51,6 +72,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
     networks:
       - backend
       - frontend
@@ -76,6 +99,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
     networks:
       - backend
     healthcheck:

@@ -450,7 +450,29 @@ class AppointmentsService:
         await self.session.commit()
         return await self.get(appointment_id)
 
-    async def _reschedule(self, actual: Appointment, valores: dict[str, Any]) -> None:
+    async def reschedule(
+        self,
+        appointment_id: uuid.UUID,
+        valores: dict[str, Any],
+        *,
+        event_extra: dict[str, Any] | None = None,
+    ) -> Appointment:
+        """Mueve el turno validando bajo lock, sin commit (C-08 lo reutiliza por token).
+
+        `valores` usa los mismos campos que `AppointmentUpdate`; `event_extra` se mezcla en
+        el payload del evento `rescheduled` y nunca debe llevar datos personales ni el token.
+        Si nada cambia es un no-op y no escribe evento.
+        """
+        actual = await self._appointment(appointment_id)
+        return await self._reschedule(actual, valores, event_extra=event_extra)
+
+    async def _reschedule(
+        self,
+        actual: Appointment,
+        valores: dict[str, Any],
+        *,
+        event_extra: dict[str, Any] | None = None,
+    ) -> Appointment:
         origen = (actual.professional_id, actual.chair_id)
         destino_prof = valores.get("professional_id", actual.professional_id)
         destino_sillon = valores.get("chair_id", actual.chair_id)
@@ -517,11 +539,12 @@ class AppointmentsService:
         }
         cambiados = [c for c in campos if antes[c] != nuevos[c]]
         if not cambiados:
-            return
+            return appointment
         await self._write(data, resuelto, policy, update=(appointment, nuevos))
         payload: dict[str, Any] = {
             "before": {c: antes[c] for c in cambiados},
             "after": {c: nuevos[c] for c in cambiados},
+            **(event_extra or {}),
         }
         if data.is_overbooking:
             payload |= {"conflicts": resuelto.conflicts, "over_limit": resuelto.over_limit}
@@ -534,6 +557,7 @@ class AppointmentsService:
             to_status=appointment.status,
             payload=payload,
         )
+        return appointment
 
     # ---------------------------------------------------------- transiciones
 
@@ -753,6 +777,9 @@ class AppointmentsService:
         update: tuple[Appointment, dict[str, Any]] | None = None,
     ) -> None:
         """Flush en savepoint; la violación del EXCLUDE se traduce a `409 slot_taken`."""
+        # El id se toma antes: si el savepoint revierte, el turno queda expirado y leerlo
+        # dispararía un lazy-load sincrónico (MissingGreenlet en async).
+        excluir = update[0].id if update is not None else None
         try:
             async with self.session.begin_nested():
                 if add is not None:
@@ -764,7 +791,6 @@ class AppointmentsService:
         except IntegrityError as exc:
             if _EXCLUDE_PREFIX not in str(exc.orig):
                 raise DomainError(422, "invalid_appointment") from None
-            excluir = update[0].id if update is not None else None
             if update is not None:
                 await self.session.refresh(update[0])
             conflictos = await find_conflicts(

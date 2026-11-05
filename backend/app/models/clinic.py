@@ -28,6 +28,10 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("jsonb_typeof(reminder_steps) = 'array'", name="reminder_steps_array"),
         CheckConstraint("max_overbookings_per_day >= 0", name="max_overbookings_nonneg"),
         CheckConstraint("waitlist_offer_ttl_hours > 0", name="waitlist_offer_ttl_positive"),
+        CheckConstraint(
+            "contact_phone IS NULL OR char_length(contact_phone) BETWEEN 6 AND 32",
+            name="contact_phone_length",
+        ),
     )
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -52,3 +56,5 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     waitlist_offer_ttl_hours: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text(str(DEFAULT_WAITLIST_OFFER_TTL_HOURS))
     )
+    # Teléfono E.164 de derivación pública (C-08, RN-ON-04/RN-CX-01). NULL = sin teléfono.
+    contact_phone: Mapped[str | None] = mapped_column(Text, nullable=True)

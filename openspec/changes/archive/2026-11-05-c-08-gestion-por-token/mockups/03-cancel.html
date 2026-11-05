@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestionar turno — cancelar</title>
+    <link rel="stylesheet" href="../../../../design-system/tokens.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body class="page">
+    <main class="shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Tu turno</p>
+          <h1 class="title">Cancelar turno</h1>
+        </div>
+        <span class="mock-tag">MOCKUP · datos sintéticos</span>
+      </header>
+
+      <section class="card">
+        <p class="appt-when">Martes 10 de noviembre · 09:30</p>
+        <p class="appt-meta">Dra. Ficticia Pérez · Sillón 1</p>
+      </section>
+
+      <form class="card" aria-labelledby="motivo">
+        <fieldset>
+          <legend id="motivo">¿Por qué no podés asistir? <span class="muted">(opcional)</span></legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="motivo" value="no_puedo_asistir" /> No puedo asistir</label>
+            <label class="choice"><input type="radio" name="motivo" value="enfermedad" /> Enfermedad</label>
+            <label class="choice"><input type="radio" name="motivo" value="viaje" /> Viaje</label>
+            <label class="choice"><input type="radio" name="motivo" value="problema_economico" /> Problema económico</label>
+            <label class="choice"><input type="radio" name="motivo" value="otro" checked /> Otro</label>
+          </div>
+        </fieldset>
+
+        <div class="field">
+          <label for="nota">Contanos brevemente <span class="muted">(opcional, máx. 200 caracteres)</span></label>
+          <textarea class="control" id="nota" rows="3" maxlength="200" placeholder="Solo si elegiste «Otro»"></textarea>
+          <span class="hint">Esta nota la lee el equipo de la clínica; no se comparte con nadie más.</span>
+        </div>
+
+        <div class="alert alert-warning" role="status" style="margin-top: var(--space-4)">
+          Si cancelás, el horario queda libre para otra persona y no se puede deshacer.
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-danger" type="submit">Confirmar cancelación</button>
+          <a class="btn btn-secondary" href="01-pending.html">Volver sin cancelar</a>
+        </div>
+      </form>
+
+      <p class="footnote">Podés volver a reservar cuando quieras desde el link de la clínica.</p>
+    </main>
+    <script src="../../../../design-system/brand.js"></script>
+  </body>
+</html>

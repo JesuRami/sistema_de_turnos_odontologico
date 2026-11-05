@@ -95,3 +95,23 @@ def booking_create_ip_key(ip: str) -> str:
 def booking_create_slug_key(clinic_id: object) -> str:
     """Clave del cupo de reservas públicas por clínica: solo con slug resuelto (C-07)."""
     return f"rl:booking:create:slug:{clinic_id}"
+
+
+def manage_read_ip_key(ip: str) -> str:
+    """Clave del cupo de lecturas de gestión por IP (C-08, D10)."""
+    return f"rl:manage:read:ip:{ip}"
+
+
+def manage_read_token_key(token_sha256: str) -> str:
+    """Clave del cupo de lecturas por token: el SHA-256, nunca el token (C-08, D10)."""
+    return f"rl:manage:read:token:{token_sha256}"
+
+
+def manage_write_ip_key(ip: str) -> str:
+    """Clave del cupo de escrituras de gestión por IP (C-08, D10)."""
+    return f"rl:manage:write:ip:{ip}"
+
+
+def manage_write_token_key(token_sha256: str) -> str:
+    """Clave del cupo de escrituras por token: el SHA-256, nunca el token (C-08, D10)."""
+    return f"rl:manage:write:token:{token_sha256}"

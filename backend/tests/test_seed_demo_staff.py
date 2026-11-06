@@ -57,9 +57,7 @@ async def test_seed_con_demo_users_crea_un_usuario_por_cada_rol(db_session: Asyn
     ).scalar_one()
 
     users = (
-        (await db_session.execute(select(User).where(User.clinic_id == clinic.id)))
-        .scalars()
-        .all()
+        (await db_session.execute(select(User).where(User.clinic_id == clinic.id))).scalars().all()
     )
     assert len(users) == 3
 

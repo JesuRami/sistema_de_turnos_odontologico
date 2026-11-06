@@ -77,7 +77,7 @@ def test_secreto_de_links_valido_se_acepta() -> None:
     ("nombre", "valor"),
     [
         ("REMINDER_WHATSAPP_PROVIDER", "smtp"),
-        ("REMINDER_WHATSAPP_PROVIDER", "meta"),
+        ("REMINDER_WHATSAPP_PROVIDER", "twilio"),  # `meta` entra con C-10
         ("REMINDER_EMAIL_PROVIDER", "sendgrid"),
     ],
 )

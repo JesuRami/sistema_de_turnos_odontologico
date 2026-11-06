@@ -21,7 +21,7 @@ from arq.connections import RedisSettings
 from app.core.database import create_engine, create_sessionmaker
 from app.core.settings import Settings, get_settings
 from app.modules.reminders.dispatch import run_tick
-from app.modules.reminders.senders import build_senders
+from app.modules.reminders.senders import build_senders, close_senders
 
 logger = logging.getLogger("worker")
 
@@ -48,6 +48,9 @@ async def on_startup(ctx: dict[str, Any]) -> None:
 
 
 async def on_shutdown(ctx: dict[str, Any]) -> None:
+    senders = ctx.pop("senders", None)
+    if senders:
+        await close_senders(senders)
     engine = ctx.pop("engine", None)
     if engine is not None:
         await engine.dispose()

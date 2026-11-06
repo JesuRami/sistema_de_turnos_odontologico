@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import ActorType, AppointmentEventType, AppointmentStatus
+from app.models import ActorType, AppointmentEventType, AppointmentStatus, ReminderChannel
 
 CapacityBasis = Literal["current_schedule"]
 
@@ -106,3 +106,31 @@ class AuditEventRead(BaseModel):
 class AuditPage(BaseModel):
     items: list[AuditEventRead]
     next_cursor: str | None
+
+
+class WhatsAppReportRow(BaseModel):
+    """Mensajes de un paso y canal enviados en el rango (C-10, D10); costo en USD (6 decimales)."""
+
+    step: str
+    channel: ReminderChannel
+    sent: int
+    delivered: int
+    read: int
+    failed: int
+    cost_usd: str
+
+
+class WhatsAppReportTotals(BaseModel):
+    sent: int
+    delivered: int
+    read: int
+    failed: int
+    cost_usd: str
+
+
+class WhatsAppReport(BaseModel):
+    from_date: date
+    to_date: date
+    currency: Literal["USD"] = "USD"
+    rows: list[WhatsAppReportRow]
+    totals: WhatsAppReportTotals

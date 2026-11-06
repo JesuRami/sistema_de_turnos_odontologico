@@ -37,7 +37,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, insert, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.settings import Settings
@@ -57,12 +56,13 @@ from app.models import (
     ReminderReason,
     ReminderStatus,
 )
-from app.modules.reminders.jobs import add_event
+from app.modules.notifications.replies import run_replies
+from app.modules.reminders.jobs import add_event, escalate_to_email
 from app.modules.reminders.links import ManageLinkDisabled, build_manage_url
 from app.modules.reminders.scheduling import reconcile
 from app.modules.reminders.senders.base import OutboundMessage, ReminderSender, SendError
 from app.modules.reminders.senders.render import MissingVariable, format_date, format_time, render
-from app.modules.reminders.senders.window import choose_message_kind
+from app.modules.reminders.templates import param_order_of, whatsapp_buttons
 
 logger = logging.getLogger("reminders.dispatch")
 
@@ -112,6 +112,8 @@ class Ready:
     tz: ZoneInfo
     patient_email: str | None
     email_blocked: bool
+    # `phone_number_id` emisor de WhatsApp: el propio de la clínica o el compartido (C-10).
+    sender_id: str | None = None
 
     def __repr__(self) -> str:
         return f"Ready(job={self.job_id}, channel={self.channel.value}, step={self.step})"
@@ -220,6 +222,7 @@ def _context_query(job_ids: Sequence[uuid.UUID]) -> Any:
             Professional.display_name.label("professional_name"),
             Clinic.name.label("clinic_name"),
             Clinic.timezone,
+            Clinic.whatsapp_phone_number_id.label("clinic_whatsapp_number"),
             NotificationTemplate.id.label("template_id"),
             NotificationTemplate.meta_template_name,
             NotificationTemplate.body_preview,
@@ -280,25 +283,14 @@ async def _escalate_to_email(
     now: datetime,
     stats: TickStats,
 ) -> None:
-    """Crea el job de email del mismo turno y paso si hay dirección y no hay baja de ese canal."""
-    if job.channel is not ReminderChannel.WHATSAPP or not patient_email or email_blocked:
-        return
-    creado = await session.scalar(
-        pg_insert(ReminderJob)
-        .values(
-            clinic_id=job.clinic_id,
-            appointment_id=job.appointment_id,
-            step=job.step,
-            channel=ReminderChannel.EMAIL,
-            scheduled_for=now,
-            available_at=now,
-            starts_at_snapshot=starts_at,
-        )
-        .on_conflict_do_nothing(index_elements=["appointment_id", "step", "channel"])
-        .returning(ReminderJob.id)
-    )
-    if creado is not None:
-        add_event(session, job.id, job.clinic_id, DeliveryEventType.ESCALATED, {"to": "email"})
+    if await escalate_to_email(
+        session,
+        job,
+        starts_at=starts_at,
+        patient_email=patient_email,
+        email_blocked=email_blocked,
+        now=now,
+    ):
         stats.escalated += 1
 
 
@@ -309,6 +301,7 @@ async def _claim_batch(
     settings: Settings,
     stats: TickStats,
 ) -> Claimed:
+    compartido = settings.META_PHONE_NUMBER_ID.strip() or None
     async with factory() as session, session.begin():
         jobs = list(
             (
@@ -446,6 +439,7 @@ async def _claim_batch(
                         tz=ZoneInfo(ctx.timezone),
                         patient_email=email,
                         email_blocked=email_blocked,
+                        sender_id=ctx.clinic_whatsapp_number or compartido,
                     )
                 )
         await session.flush()
@@ -466,8 +460,9 @@ def _build_message(ready: Ready, settings: Settings, now: datetime) -> OutboundM
         "hora": format_time(ready.starts_at, ready.tz),
         "link": build_manage_url(settings, ready.appointment_id),
     }
-    # Todo recordatorio proactivo sale como plantilla; `session` solo habilita respuestas (C-10).
-    _ = choose_message_kind(None, now)
+    # Todo recordatorio proactivo sale como plantilla aunque la ventana de 24 h esté abierta: el
+    # texto libre es solo para responder a un entrante (outbox de C-10, D8).
+    es_whatsapp = ready.channel is ReminderChannel.WHATSAPP
     return OutboundMessage(
         channel=ready.channel,
         to=ready.recipient,
@@ -480,6 +475,9 @@ def _build_message(ready: Ready, settings: Settings, now: datetime) -> OutboundM
             if ready.channel is ReminderChannel.EMAIL
             else None
         ),
+        sender_id=ready.sender_id if es_whatsapp else None,
+        param_order=param_order_of(ready.body_preview) if es_whatsapp else (),
+        buttons=whatsapp_buttons(ready.step) if es_whatsapp else (),
     )
 
 
@@ -577,7 +575,14 @@ async def _record_success(
                 clinic_id=ready.clinic_id,
                 reminder_job_id=ready.job_id,
                 event_type=DeliveryEventType.SENT,
-                payload={"attempt": ready.attempts, "kind": "template"},
+                # Mismo instante que `sent_at`: el reporte (C-10) filtra el envío por este evento.
+                occurred_at=now,
+                # El costo va en el evento (C-10, D10): el reporte lo suma sin leer estado mutable.
+                payload={
+                    "attempt": ready.attempts,
+                    "kind": "template",
+                    "cost_micros": _cost(settings, ready.channel),
+                },
             )
         )
     return True
@@ -717,6 +722,10 @@ async def run_tick(
     habilitados = list(senders)
     if not habilitados:
         return stats
+    # Respuestas de sesión a mensajes entrantes (C-10, D8): mismo worker, mismo canal.
+    whatsapp = senders.get(ReminderChannel.WHATSAPP)
+    if whatsapp is not None and hasattr(whatsapp, "send_text"):
+        await run_replies(factory, whatsapp, settings, now=now)  # type: ignore[arg-type]
     limite = time.monotonic() + settings.REMINDER_TICK_BUDGET_S
     puerta = asyncio.Semaphore(settings.REMINDER_WORKER_CONCURRENCY)
     while time.monotonic() < limite and stats.batches < _MAX_BATCHES:

@@ -13,6 +13,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+from app.models import ConsentStatus, ReminderChannel
+
 FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Dni = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
 
@@ -73,3 +75,19 @@ class PatientMergeResult(BaseModel):
     moved_appointments: int
     appointment_ids: list[uuid.UUID]
     filled_fields: list[str]
+
+
+class ConsentChange(BaseModel):
+    """Cambio de consentimiento de un canal cargado por el personal (C-10, D9)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ConsentStatus
+
+
+class ConsentRead(BaseModel):
+    """Estado vigente del canal tras el pedido; `changed` dice si se agregó un registro."""
+
+    channel: ReminderChannel
+    status: ConsentStatus
+    changed: bool

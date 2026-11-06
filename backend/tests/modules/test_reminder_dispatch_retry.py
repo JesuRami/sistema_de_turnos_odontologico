@@ -84,7 +84,8 @@ async def test_un_envio_exitoso_guarda_id_hora_costo_y_evento(
     assert (job.attempts, job.last_error, job.template_id is not None) == (1, None, True)
     [evento] = await read_events(rem_maker, job.id)
     assert evento.event_type is DeliveryEventType.SENT
-    assert evento.payload == {"attempt": 1, "kind": "template"}
+    # C-10 (D10): el evento lleva el costo para que el reporte no lea el job.
+    assert evento.payload == {"attempt": 1, "kind": "template", "cost_micros": 12500}
     assert stats.sent == 1
 
 

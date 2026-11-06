@@ -92,13 +92,21 @@ class Settings(BaseSettings):
     CLINIC_TZ_DEFAULT: str = "America/Argentina/Buenos_Aires"
     ENV: str = "dev"
 
-    # WhatsApp Cloud API (C-09/C-10; en C-01 solo claves, sin envío real).
-    WHATSAPP_TOKEN: str = ""
+    # WhatsApp Cloud API (C-10, D3). Con `REMINDER_WHATSAPP_PROVIDER=meta` son obligatorias
+    # (token, secreto de app, número compartido por defecto y token de verificación del webhook).
+    WHATSAPP_TOKEN: SecretStr = SecretStr("")
     META_APP_ID: str = ""
-    META_APP_SECRET: str = ""
+    META_APP_SECRET: SecretStr = SecretStr("")
     META_PHONE_NUMBER_ID: str = ""
     META_API_VERSION: str = "v19.0"
-    META_VERIFY_TOKEN: str = ""
+    META_VERIFY_TOKEN: SecretStr = SecretStr("")
+    # Base de la Graph API (configurable para tests con transporte local).
+    META_GRAPH_BASE_URL: str = "https://graph.facebook.com"
+    WHATSAPP_HTTP_TIMEOUT_S: float = Field(default=10, gt=0)
+    # Tope del cuerpo del webhook (bytes); más grande → 413 sin leer el resto.
+    WHATSAPP_WEBHOOK_MAX_BYTES: int = Field(default=1024 * 1024, ge=1024)
+    # Intentos de una respuesta de sesión (outbox) antes de quedar `failed`.
+    WHATSAPP_REPLY_MAX_ATTEMPTS: int = Field(default=3, ge=1)
 
     # Email transaccional (canal de respaldo; proveedor a definir).
     EMAIL_HOST: str = ""
@@ -110,8 +118,8 @@ class Settings(BaseSettings):
     # Worker async y motor de recordatorios (C-09, D10/D12/D13).
     REMINDER_WORKER_CONCURRENCY: int = Field(default=10, ge=1)
     # `disabled`: el worker no reclama los jobs del canal y nunca los marca enviados.
-    # El valor `meta` lo agrega C-10 con el adaptador de la Cloud API.
-    REMINDER_WHATSAPP_PROVIDER: Literal["disabled", "fake"] = "disabled"
+    # `meta` envía por la Cloud API (C-10); exige las credenciales META_*/WHATSAPP_TOKEN.
+    REMINDER_WHATSAPP_PROVIDER: Literal["disabled", "fake", "meta"] = "disabled"
     REMINDER_EMAIL_PROVIDER: Literal["disabled", "smtp", "fake"] = "disabled"
     REMINDER_MAX_ATTEMPTS: int = Field(default=3, ge=1)
     # Espera tras el 1.er, 2.º… fallo; el tramo i vale tras el fallo i+1.
@@ -181,6 +189,18 @@ class Settings(BaseSettings):
                 raise SettingsError(
                     f"MANAGE_LINK_SECRET debe tener al menos {_LINK_MIN_SECRET_BYTES} bytes; "
                     "generar con `openssl rand -hex 32`"
+                )
+        if self.REMINDER_WHATSAPP_PROVIDER == "meta":
+            requeridas = {
+                "WHATSAPP_TOKEN": self.WHATSAPP_TOKEN.get_secret_value(),
+                "META_APP_SECRET": self.META_APP_SECRET.get_secret_value(),
+                "META_PHONE_NUMBER_ID": self.META_PHONE_NUMBER_ID,
+                "META_VERIFY_TOKEN": self.META_VERIFY_TOKEN.get_secret_value(),
+            }
+            faltan = [nombre for nombre, valor in requeridas.items() if not valor.strip()]
+            if faltan:
+                raise SettingsError(
+                    "REMINDER_WHATSAPP_PROVIDER=meta exige configurar: " + ", ".join(faltan)
                 )
         if len(self.reminder_backoff_minutes) < self.REMINDER_MAX_ATTEMPTS - 1:
             raise SettingsError(

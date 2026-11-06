@@ -25,6 +25,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.booking_public.router import router as booking_public_router
 from app.modules.clinic.router import router as clinic_router
 from app.modules.manage.router import router as manage_router
+from app.modules.notifications.router import WEBHOOK_PATH
 from app.modules.notifications.router import router as notifications_router
 from app.modules.patients.router import router as patients_router
 from app.modules.reminders.router import router as reminders_router
@@ -57,7 +58,8 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         self._hits: dict[str, list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in ("/health", "/ready"):
+        # El webhook de Meta se autentica por firma; un 429 provocaría reintentos en ráfaga.
+        if request.url.path in ("/health", "/ready", WEBHOOK_PATH):
             return await call_next(request)
         now = time.monotonic()
         key = request.client.host if request.client else "unknown"

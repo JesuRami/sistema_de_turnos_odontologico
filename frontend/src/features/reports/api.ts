@@ -14,7 +14,8 @@ import type {
   CancellationsReport,
   OccupancyReport,
   Page,
-  ReportGroupBy
+  ReportGroupBy,
+  WhatsAppReport
 } from "../../shared/api/types";
 
 export interface DateRange {
@@ -37,6 +38,7 @@ export const reportKeys = {
   occupancy: (r: DateRange, g: ReportGroupBy) => ["reports", "occupancy", r, g] as const,
   absenteeism: (r: DateRange) => ["reports", "absenteeism", r] as const,
   cancellations: (r: DateRange) => ["reports", "cancellations", r] as const,
+  whatsapp: (r: DateRange) => ["reports", "whatsapp", r] as const,
   audit: (f: AuditFilters) => ["reports", "audit", f] as const
 };
 
@@ -67,6 +69,17 @@ export function useCancellations(range: DateRange | null): UseQueryResult<Cancel
     queryKey: range === null ? ["reports", "cancellations", "off"] : reportKeys.cancellations(range),
     queryFn: () =>
       apiFetch<CancellationsReport>("/api/reports/cancellations", {
+        query: { from: range?.from, to: range?.to }
+      }),
+    enabled: range !== null
+  });
+}
+
+export function useWhatsAppReport(range: DateRange | null): UseQueryResult<WhatsAppReport> {
+  return useQuery({
+    queryKey: range === null ? ["reports", "whatsapp", "off"] : reportKeys.whatsapp(range),
+    queryFn: () =>
+      apiFetch<WhatsAppReport>("/api/reports/whatsapp", {
         query: { from: range?.from, to: range?.to }
       }),
     enabled: range !== null

@@ -96,6 +96,7 @@ El plan de implementación completo está en [CHANGES.md](CHANGES.md). Resumen:
 
 1. NUNCA validar solapamientos solo en backend → imponer EXCLUDE USING gist sobre tstzrange por (profesional, sillón) WHERE estado vigente; colisión → 409 + turnos alternativos.
 2. NUNCA schema Pydantic v2 sin extra='forbid' → ConfigDict(extra='forbid') en bordes (booking público, webhooks, admin).
+   - **Excepción documentada (C-10, decisión del usuario 2026-11-06)**: los modelos del payload del webhook de Meta (`backend/app/modules/notifications/payload.py`) usan `extra='ignore'`, porque Meta agrega campos sin aviso y un 4xx haría que desactive la suscripción. Solo se parsea con ellos DESPUÉS de verificar `X-Hub-Signature-256`; los campos consumidos siguen tipados y lo ignorado nunca se persiste ni se loguea; un payload firmado que no valida responde 200 y se registra sin PII. Ningún otro borde se relaja (lo verifica `backend/tests/test_edges.py`).
 3. NUNCA cambio de schema fuera de Alembic → una migración versionada por change; DDL para EXCLUDE.
 4. NUNCA tabla operativa sin clinic_id obligatorio + test de aislamiento cross-tenant.
 5. NUNCA any en TypeScript → tsconfig estricto; componentes PascalCase; tipos en bordes API.

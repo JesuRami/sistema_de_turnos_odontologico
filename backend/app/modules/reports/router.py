@@ -31,8 +31,10 @@ from app.modules.reports.schemas import (
     AuditPage,
     CancellationsReport,
     OccupancyReport,
+    WhatsAppReport,
 )
 from app.modules.reports.service import ReportsService
+from app.modules.reports.whatsapp import whatsapp_report
 
 router = APIRouter(prefix="/api", tags=["reports"])
 
@@ -151,6 +153,36 @@ async def absenteeism(
                 ]
                 for r in informe.rows
             ],
+        )
+    return informe
+
+
+@router.get(
+    "/reports/whatsapp",
+    response_model=WhatsAppReport,
+    dependencies=[Depends(only_params("from", "to", "format"))],
+)
+async def whatsapp(
+    principal: AdminDep,
+    session: DbSession,
+    desde: Desde,
+    hasta: Hasta,
+    formato: Annotated[str, Query(alias="format")] = "json",
+) -> WhatsAppReport | Response:
+    """Mensajes enviados/entregados/leídos/fallidos y costo por paso y canal (C-10, RN-WA-05)."""
+    fmt = _format(formato)
+    ventana = await ReportsService(session, principal.clinic_id).window(desde, hasta)
+    informe = await whatsapp_report(session, principal.clinic_id, ventana)
+    if fmt == "csv":
+        t = informe.totals
+        return csv_response(
+            f"whatsapp-{desde}-{hasta}.csv",
+            ["step", "channel", "sent", "delivered", "read", "failed", "cost_usd"],
+            [
+                [r.step, r.channel, r.sent, r.delivered, r.read, r.failed, r.cost_usd]
+                for r in informe.rows
+            ]
+            + [["total", "", t.sent, t.delivered, t.read, t.failed, t.cost_usd]],
         )
     return informe
 

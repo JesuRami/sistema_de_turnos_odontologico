@@ -21,14 +21,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.exceptions import DomainError
 from app.common.phone import InvalidPhoneError, normalize_phone_e164
 from app.common.principal import Principal
-from app.models import Appointment, ConsentSource, Patient
+from app.models import (
+    Appointment,
+    ConsentSource,
+    ConsentStatus,
+    Patient,
+    ReminderChannel,
+)
 from app.modules.clinic.service import create_patient, find_patients_by_phone
 from app.modules.patients.schemas import (
+    ConsentChange,
+    ConsentRead,
     PatientCreate,
     PatientDetail,
     PatientRead,
     PatientSearchResult,
 )
+from app.modules.reminders.consent import ConsentService
 
 QUERY_MIN = 3
 QUERY_MAX = 100
@@ -151,3 +160,37 @@ class PatientsService:
         )
         if existente is not None:
             raise DomainError(409, "patient_duplicate", extra={"patient_id": str(existente)})
+
+    async def set_consent(
+        self, patient_id: uuid.UUID, channel: ReminderChannel, payload: ConsentChange
+    ) -> ConsentRead:
+        """Opt-in u opt-out de un canal cargado por el personal (C-10, D9; fuente `reception`).
+
+        Paciente ajeno o fusionado → `404`; opt-in sin el dato de contacto del canal → `422`.
+        Una baja deja `skipped` los jobs pendientes del canal en la misma transacción (C-09 D8).
+        """
+        patient = await self.session.scalar(
+            select(Patient)
+            .where(
+                Patient.id == patient_id,
+                Patient.clinic_id == self.principal.clinic_id,
+                Patient.merged_into_patient_id.is_(None),
+            )
+            .with_for_update()
+        )
+        if patient is None:
+            raise DomainError(404, "not_found")
+        if payload.status is ConsentStatus.OPT_IN:
+            if channel is ReminderChannel.WHATSAPP and not patient.phone_e164:
+                raise DomainError(422, "phone_required")
+            if channel is ReminderChannel.EMAIL and not (patient.email or "").strip():
+                raise DomainError(422, "email_required")
+        cambio = await ConsentService(self.session).record(
+            patient,
+            channel,
+            payload.status,
+            ConsentSource.RECEPTION,
+            user_id=self.principal.user_id,
+        )
+        await self.session.commit()
+        return ConsentRead(channel=channel, status=payload.status, changed=cambio)

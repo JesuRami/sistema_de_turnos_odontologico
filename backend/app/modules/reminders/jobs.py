@@ -10,14 +10,17 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import ColumnElement, insert, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     DeliveryEvent,
     DeliveryEventType,
+    ReminderChannel,
     ReminderJob,
     ReminderReason,
     ReminderStatus,
@@ -89,3 +92,39 @@ async def close_scheduled(
             )
         )
     return [job_id for job_id, _ in cerrados]
+
+
+async def escalate_to_email(
+    session: AsyncSession,
+    job: ReminderJob,
+    *,
+    starts_at: datetime,
+    patient_email: str | None,
+    email_blocked: bool,
+    now: datetime,
+) -> bool:
+    """Crea el job de email del mismo turno y paso si hay dirección y no hay baja de ese canal.
+
+    Lo usan el despacho (fallo al enviar, C-09) y el webhook (fallo informado por Meta, C-10).
+    Devuelve si se creó el job (la clave `(appointment_id, step, channel)` lo hace idempotente).
+    """
+    if job.channel is not ReminderChannel.WHATSAPP or not patient_email or email_blocked:
+        return False
+    creado = await session.scalar(
+        pg_insert(ReminderJob)
+        .values(
+            clinic_id=job.clinic_id,
+            appointment_id=job.appointment_id,
+            step=job.step,
+            channel=ReminderChannel.EMAIL,
+            scheduled_for=now,
+            available_at=now,
+            starts_at_snapshot=starts_at,
+        )
+        .on_conflict_do_nothing(index_elements=["appointment_id", "step", "channel"])
+        .returning(ReminderJob.id)
+    )
+    if creado is None:
+        return False
+    add_event(session, job.id, job.clinic_id, DeliveryEventType.ESCALATED, {"to": "email"})
+    return True

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, Index, Integer, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,6 +32,18 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "contact_phone IS NULL OR char_length(contact_phone) BETWEEN 6 AND 32",
             name="contact_phone_length",
         ),
+        # Número propio de WhatsApp (C-10, D1): `phone_number_id` de Meta, solo dígitos.
+        CheckConstraint(
+            "whatsapp_phone_number_id IS NULL OR whatsapp_phone_number_id ~ '^[0-9]{5,32}$'",
+            name="whatsapp_phone_number_id_format",
+        ),
+        # Un número propio es de una sola clínica; las que usan el compartido quedan en NULL.
+        Index(
+            "uq_clinic_whatsapp_phone_number_id",
+            "whatsapp_phone_number_id",
+            unique=True,
+            postgresql_where=text("whatsapp_phone_number_id IS NOT NULL"),
+        ),
     )
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -58,3 +70,5 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     # Teléfono E.164 de derivación pública (C-08, RN-ON-04/RN-CX-01). NULL = sin teléfono.
     contact_phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # `phone_number_id` de Meta del número propio (C-10). NULL = usa el número compartido.
+    whatsapp_phone_number_id: Mapped[str | None] = mapped_column(Text, nullable=True)

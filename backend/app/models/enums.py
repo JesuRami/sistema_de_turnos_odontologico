@@ -176,6 +176,37 @@ class DeliveryEventType(enum.StrEnum):
     READ = "read"
 
 
+class WhatsAppIntent(enum.StrEnum):
+    """Intención de un mensaje entrante del paciente (C-10, D7)."""
+
+    CONFIRM = "confirm"
+    CHANGE = "change"
+    STOP = "stop"
+    UNKNOWN = "unknown"
+
+
+class WhatsAppReplyKind(enum.StrEnum):
+    """Respuesta de sesión que el sistema envía a un entrante (C-10, D7/D8)."""
+
+    CONFIRMED = "confirmed"
+    CHANGE_LINK = "change_link"
+    CHANGE_CONTACT = "change_contact"
+    INACTIVE = "inactive"
+    AMBIGUOUS = "ambiguous"
+    STOP_ACK = "stop_ack"
+
+
+class WhatsAppReplyStatus(enum.StrEnum):
+    """Estado de una respuesta del outbox (C-10, D8); `sending` es el lease del reclamo."""
+
+    PENDING = "pending"
+    SENDING = "sending"
+    SENT = "sent"
+    FAILED = "failed"
+    EXPIRED = "expired"
+    SKIPPED = "skipped"
+
+
 # Vigente = ocupa agenda (RN-AG-01); `absent`, `no_show` y `cancelled` liberan el hueco.
 VIGENT_STATUSES = (
     AppointmentStatus.PENDING,

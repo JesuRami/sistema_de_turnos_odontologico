@@ -43,6 +43,7 @@ from app.modules.booking_public.service import (
     BookingPublicService,
     PublicClinic,
 )
+from app.modules.manage.actions import ConfirmOutcome, confirm_by_patient
 from app.modules.manage.reasons import REASON_OPTIONS, PatientReason
 from app.modules.manage.schemas import (
     BlockedReason,
@@ -323,26 +324,24 @@ class ManageService:
         )
 
     async def confirm(self, token: str) -> ManageView:
-        """`pending → confirmed` (D6); ya confirmado no repite la transición."""
+        """`pending → confirmed` (D6); ya confirmado no repite la transición.
+
+        La transición la comparte con el "SÍ" por WhatsApp (C-10): `confirm_by_patient`.
+        """
         link = await self.resolve(token)
-        appointment = await self._locked(link)
-        if self.now >= appointment.starts_at:
-            raise DomainError(409, "appointment_started")
-        if appointment.status is AppointmentStatus.CONFIRMED:
-            await self._replay(link, appointment, "confirm")
-        else:
-            # Mutación + invalidación de recordatorios: una sola unidad (D11).
-            async with self.session.begin_nested():
-                await apply_transition(
-                    self.session,
-                    appointment,
-                    AppointmentStatus.CONFIRMED,
-                    self._actor(link),
-                    now=self.now,
-                    tz=link.tz,
-                    cancellation_window_hours=link.cancellation_window_hours,
-                    extra_payload={"source": "manage_link"},
-                )
+        # Mutación + invalidación de recordatorios: una sola unidad (D11).
+        async with self.session.begin_nested():
+            resultado = await confirm_by_patient(
+                self.session,
+                clinic_id=link.clinic_id,
+                appointment_id=link.appointment_id,
+                now=self.now,
+                tz=link.tz,
+                cancellation_window_hours=link.cancellation_window_hours,
+                source="manage_link",
+            )
+            if resultado is ConfirmOutcome.CONFIRMED:
+                appointment = await self._locked(link)
                 await self.invalidator.invalidated(self.session, appointment, action="confirm")
         await self.session.commit()
         return await self.view(token)

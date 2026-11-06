@@ -28,6 +28,9 @@ from app.models.enums import (
     ReminderReason,
     ReminderStatus,
     UserRole,
+    WhatsAppIntent,
+    WhatsAppReplyKind,
+    WhatsAppReplyStatus,
 )
 from app.models.notification_template import NotificationTemplate
 from app.models.patient import Patient
@@ -36,6 +39,8 @@ from app.models.professional import Professional
 from app.models.reminder_job import ReminderJob
 from app.models.schedule_rule import ScheduleRule
 from app.models.user import User
+from app.models.whatsapp_inbound import WhatsAppInbound
+from app.models.whatsapp_outbound_reply import WhatsAppOutboundReply
 
 __all__ = [
     "VIGENT_STATUSES",
@@ -72,4 +77,9 @@ __all__ = [
     "ScheduleRule",
     "User",
     "UserRole",
+    "WhatsAppInbound",
+    "WhatsAppIntent",
+    "WhatsAppOutboundReply",
+    "WhatsAppReplyKind",
+    "WhatsAppReplyStatus",
 ]

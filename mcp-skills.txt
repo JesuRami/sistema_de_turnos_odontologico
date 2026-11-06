@@ -1,0 +1,161 @@
+===== PAGE 1 =====
+METODOLOGÍA I
+Trabajo práctico: integrar una skill propia y un MCP al
+proyecto odontológico
+OBJETIVO	GENERAL
+Investigar, seleccionar e incorporar herramientas que mejoren el trabajo del agente sobre el sistema odontológico.
+Crear una skill propia con ayuda de una skill creadora, conectar un servidor MCP existente e integrar ambas
+incorporaciones a la fundación del proyecto. Demostrar su utilidad preparando un change pendiente con Spec-
+Driven Development.
+PUNTO	DE	PARTIDA	Y	MODALIDAD
+Se considera completado el TP «Del Discovery al primer Change»: investigación de mercado, fundación con Active
+Stack y un único change implementado, veriﬁcado y archivado. Continúen sobre ese mismo repositorio y su
+roadmap; mantengan los equipos del trabajo anterior (individual o hasta tres integrantes).
+El TP tiene dos partes: investigación y planiﬁcación en clase, seguida de integración y aplicación en el proyecto.
+Todos los integrantes deben participar y poder explicar las decisiones del equipo. El alcance es una skill propia, un
+servidor MCP existente y la preparación de un único change pendiente. La implementación y el archivado de ese
+nuevo change quedan para una instancia posterior.
+MARCO	CONCEPTUAL
+Concepto Aplicación en este trabajo
+Skill Instrucciones reutilizables para que el agente realice una tarea concreta con un procedimiento y
+criterios de revisión.
+Servidor
+MCP
+Integración que permite al agente acceder a las capacidades expuestas por un sistema externo.
+Deben identiﬁcar cuáles ofrece el servidor elegido y utilizar una herramienta real.
+Fundación Base de conocimiento, roadmap, registro de skills e instrucciones del agente. Las incorporaciones
+deben quedar ubicadas, referenciadas y documentadas dentro de este contexto.
+TECNICATURA UNIVERSITARIA
+EN PROGRAMACION
+1
+Metodología I
+===== PAGE 2 =====
+PARTE	1.	INVESTIGACIÓN	Y	PLANIFICACIÓN	EN	CLASE
+1.	Identificar	una	necesidad	real
+Revisen el proyecto y elijan un change pendiente de CHANGES.md  que pueda prepararse sin depender de
+funcionalidades todavía inexistentes. Identiﬁquen una tarea repetible que una skill podría mejorar y una necesidad
+de acceso a información o herramientas que un MCP podría resolver. Expliquen cómo ambas ayudan a preparar
+ese mismo change.
+Como orientación, una skill podría revisar escenarios de turnos para detectar reglas ambiguas o casos de borde
+faltantes; un MCP podría consultar documentación del stack o inspeccionar un recurso de desarrollo disponible.
+Estos ejemplos no ﬁjan la elección: justiﬁquen la propuesta según su proyecto.
+2.	Investigar	cómo	crear	una	skill
+Busquen una skill creadora de skills. Registren nombre, fuente oﬁcial o repositorio del autor y compatibilidad
+con su agente.
+Investiguen cómo instalarla, comprobar que está disponible y utilizarla para generar una skill propia.
+Deﬁnan la skill a crear: propósito, cuándo se activa, entradas necesarias, procedimiento, resultado esperado y
+criterios para revisar ese resultado.
+Determinen dónde debe guardarse o cómo debe referenciarse para que su agente la encuentre.
+3.	Investigar	y	seleccionar	un	servidor	MCP
+Comparen dos servidores MCP existentes: propósito, capacidades disponibles, compatibilidad con el agente,
+requisitos de instalación o conexión, permisos, credenciales y posibles costos.
+Elijan uno que aporte al change seleccionado. Puede ser local o remoto; no es obligatorio desarrollar un
+servidor propio ni contratar un servicio pago.
+Documenten los pasos de conﬁguración según la documentación del servidor y del cliente que utilizan,
+incluyendo cómo comprobar la conexión y ejecutar una herramienta.
+Indiquen qué información podrá consultar o modiﬁcar y qué límites establecerán para trabajar con datos de
+prueba.
+4.	Elaborar	la	ficha	de	investigación
+Guarden una ﬁcha de hasta dos páginas en docs/skills-mcp/investigacion.md  con: necesidad detectada;
+change elegido; skill creadora y diseño de la skill propia; comparación de los dos MCP y elección justiﬁcada; pasos
+de instalación/conﬁguración; archivos de la fundación que prevén actualizar; y fuentes con URL y fecha de
+consulta.
+Utilicen documentación oﬁcial y repositorios de los autores. Pueden apoyarse en IA, pero deben contrastar los
+requisitos y las instrucciones con esas fuentes. Si algo no pudo veriﬁcarse, regístrenlo como pendiente. Al ﬁnalizar
+la clase, presenten la ﬁcha al docente como resultado de esta primera parte.
+TECNICATURA UNIVERSITARIA
+EN PROGRAMACION
+2
+Metodología I
+===== PAGE 3 =====
+PARTE	2.	INTEGRACIÓN	Y	APLICACIÓN	EN	EL	PROYECTO
+5.	Crear	e	integrar	la	skill	propia
+Instalen la skill creadora investigada y utilícenla para producir una skill propia. Revisen y adapten lo generado
+al dominio y a las convenciones de su proyecto.
+Guárdenla en la carpeta de skills que corresponda al agente utilizado. Si se instala fuera del repositorio,
+incluyan una copia versionada de su fuente y una referencia con instrucciones reproducibles de instalación.
+Registren la skill en .atl/skill-registry.md : nombre, propósito, ubicación y situaciones de uso.
+Actualicen AGENTS.md  y/o CLAUDE.md , según lo que lea su agente, para explicar cuándo usarla, qué necesita
+y cómo revisar el resultado. Mantengan coherentes los archivos si ambos contienen instrucciones relacionadas.
+Actualicen los documentos de la base de conocimiento o del ﬂujo de fundación que resulten afectados.
+Documenten qué se modiﬁcó y por qué; no regeneren toda la fundación ni marquen como ejecutadas etapas
+que no realizaron.
+En una sesión nueva, comprueben que el agente puede encontrar y utilizar la skill mediante las instrucciones y
+referencias del proyecto.
+6.	Configurar	e	integrar	el	MCP
+Instalen o conecten el servidor seleccionado según su documentación. Comprueben la conexión y ejecuten al
+menos una herramienta real.
+Documenten en el README.md , o en un documento enlazado desde allí, los requisitos, pasos de conﬁguración,
+nombres de variables de entorno necesarias, comprobación de conexión y solución de un problema de
+instalación si apareció.
+Incluyan una conﬁguración de ejemplo sin secretos cuando el cliente lo permita. Si la conﬁguración es externa
+o global, indiquen su ubicación y cómo reproducirla.
+Actualicen las instrucciones del agente con el propósito del MCP, capacidades que usarán, momento de uso y
+límites de acceso. El MCP debe quedar documentado como integración; no se lo registra como si fuera una
+skill.
+7.	Preparar	el	change	con	ambas	incorporaciones
+Realicen la exploración del change pendiente y generen o revisen sus artefactos: proposal.md , design.md ,
+especiﬁcaciones y tasks.md , respetando el ﬂujo SDD del proyecto. Utilicen la skill propia y una herramienta del
+MCP en tareas concretas de esa preparación. Si cambian la elección respecto de la ﬁcha inicial, expliquen el
+motivo.
+La especiﬁcación debe contener al menos tres escenarios veriﬁcables: uno de funcionamiento esperado, uno de
+error de negocio y uno de borde. Las tareas deben incluir cómo se veriﬁcará cada escenario cuando se
+implemente. Revisen las reglas contra la base de conocimiento y no incorporen decisiones de dominio sin
+justiﬁcarlas.
+Dejen el change preparado para implementar y actualicen su referencia en el roadmap según las convenciones
+existentes. No lo marquen como implementado, veriﬁcado o archivado.
+TECNICATURA UNIVERSITARIA
+EN PROGRAMACION
+3
+Metodología I
+===== PAGE 4 =====
+8.	Comprobar	y	revisar	críticamente
+Guarden evidencia de la invocación de la skill y de la herramienta del MCP: solicitud realizada, resultado obtenido
+y explicación de qué aportó al change. Mostrar únicamente una lista de herramientas instaladas no acredita su
+uso.
+Identiﬁquen al menos una omisión, error o sugerencia inadecuada en los resultados del agente. Expliquen cómo la
+detectaron, qué fuente o regla permitió corregirla y muestren el antes y el después. Si no detectaron un defecto en
+la ejecución inicial, prueben un caso de borde para evaluar sus límites y documenten el resultado sin inventar un
+error.
+ENTREGA
+Repositorio actualizado: skill propia, registro, instrucciones, conﬁguración reproducible del MCP y artefactos
+del change. Mantengan un historial de commits que muestre el proceso y la participación de los integrantes.
+Ficha de investigación: docs/skills-mcp/investigacion.md , elaborada en clase, hasta dos páginas.
+Informe de aplicación: docs/skills-mcp/aplicacion.md , hasta dos páginas, con resultados, enlaces a
+evidencias, lista de archivos modiﬁcados y motivo de cada modiﬁcación, revisión crítica y limitaciones. Las
+capturas o registros pueden ir en una carpeta de evidencias enlazada.
+Video de demostración: hasta cinco minutos, mostrando el uso real de la skill y del MCP, su integración a la
+fundación y el aporte al change. En grupo, cada integrante explica su contribución.
+Realicen una única entrega por equipo en un archivo .zip , con nombre TP-Skills-MCP-Apellido1-
+Apellido2-Apellido3.zip  (incluyan solo los apellidos correspondientes). Dentro agreguen un ENTREGA.md  con
+integrantes, enlace al repositorio, commit de entrega y enlace accesible al video; incluyan la ﬁcha y el informe. El
+repositorio debe contener los artefactos completos y las instrucciones para reproducir la conﬁguración.
+CRITERIOS	DE	EVALUACIÓN
+Investigación fundamentada: fuentes veriﬁcables, comparación y elección ajustadas al proyecto.
+Skill propia: procedimiento claro, adaptación al dominio y evidencia de uso.
+MCP operativo: conexión reproducible y ejecución útil de una herramienta.
+Integración a la fundación: ubicación, registro, referencias e instrucciones actualizados y coherentes.
+Aplicación y revisión: aporte concreto al change, escenarios veriﬁcables, control del resultado y participación
+demostrable.
+CONSIDERACIONES
+✅  Datos: utilicen datos ﬁcticios; no expongan información real de pacientes.
+✅  Credenciales: no incluyan claves, tokens ni archivos con secretos en el repositorio, la entrega o el video.
+✅  Alcance: ambas incorporaciones son obligatorias. La skill debe quedar integrada a la fundación y el MCP
+documentado y operativo.
+TECNICATURA UNIVERSITARIA
+EN PROGRAMACION
+4
+Metodología I
+===== PAGE 5 =====
+✅  Reproducibilidad: otro integrante debe poder seguir las instrucciones y comprobar la disponibilidad de ambas
+herramientas.
+✅  Criterio profesional: revisen lo generado por IA y registren los problemas de acceso o compatibilidad que
+hayan tenido que resolver.
+CONCLUSIONES	ESPERADAS
+Al terminar, podrán justiﬁcar una ampliación del entorno del agente, crear una skill reutilizable, integrar un MCP y
+mantener actualizada la fundación. También podrán demostrar cómo esas incorporaciones mejoran la preparación
+del próximo change del sistema odontológico y reconocer los límites de sus resultados.
+TECNICATURA UNIVERSITARIA
+EN PROGRAMACION
+5
+Metodología I

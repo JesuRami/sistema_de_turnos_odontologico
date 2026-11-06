@@ -42,3 +42,25 @@ export function formatInstant(iso: string, tz: string): string {
     timeStyle: "short"
   }).format(new Date(iso));
 }
+
+/** Paso del motor en lenguaje claro: `created` → «Alta de turno», `t_24h` → «24 h antes». */
+export function stepLabel(step: string): string {
+  if (step === "created") {
+    return "Alta de turno";
+  }
+  const horas = /^t_(\d+)h$/.exec(step)?.[1];
+  return horas === undefined ? step : `${horas} h antes`;
+}
+
+export const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  email: "Email"
+};
+
+/** `"0.037500"` → `0,0375` (USD, hasta 6 decimales, formato argentino). */
+export function usd(value: string): string {
+  return Number(value).toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6
+  });
+}

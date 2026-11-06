@@ -279,6 +279,27 @@ export interface CancellationsReport {
   total: number;
 }
 
+/** Reporte de mensajes de recordatorio por paso y canal (C-10). Costos en USD como texto decimal. */
+export type ReminderChannel = "whatsapp" | "email";
+
+export interface WhatsAppReportRow {
+  step: string;
+  channel: ReminderChannel;
+  sent: number;
+  delivered: number;
+  read: number;
+  failed: number;
+  cost_usd: string;
+}
+
+export interface WhatsAppReport {
+  from_date: string;
+  to_date: string;
+  currency: "USD";
+  rows: WhatsAppReportRow[];
+  totals: Omit<WhatsAppReportRow, "step" | "channel">;
+}
+
 export type AppointmentEventKind =
   | "created"
   | "overbooking_created"

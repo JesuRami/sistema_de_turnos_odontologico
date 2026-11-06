@@ -19,6 +19,8 @@ class FakeSender:
     def __init__(self, channel: ReminderChannel) -> None:
         self.channel = channel
         self.sent: list[OutboundMessage] = []
+        # Textos de sesión (C-10): `(sender_id, to, body)`.
+        self.texts: list[tuple[str, str, str]] = []
         self.failures: list[SendError] = []
         self._ids = itertools.count(1)
 
@@ -33,4 +35,12 @@ class FakeSender:
             provider_id,
             message.template_name,
         )
+        return SendResult(provider_message_id=provider_id)
+
+    async def send_text(self, sender_id: str, to: str, body: str) -> SendResult:
+        if self.failures:
+            raise self.failures.pop(0)
+        self.texts.append((sender_id, to, body))
+        provider_id = f"fake-{next(self._ids)}"
+        logger.info("fake %s texto de sesión %s", self.channel.value, provider_id)
         return SendResult(provider_message_id=provider_id)

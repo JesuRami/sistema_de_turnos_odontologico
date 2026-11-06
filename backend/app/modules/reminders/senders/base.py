@@ -26,6 +26,11 @@ class OutboundMessage:
     params: Mapping[str, str]
     body: str
     subject: str | None = None
+    # WhatsApp (C-10, D4): `phone_number_id` emisor (propio de la clínica o compartido), orden de
+    # los parámetros posicionales de la plantilla y payloads de sus botones de respuesta rápida.
+    sender_id: str | None = None
+    param_order: tuple[str, ...] = ()
+    buttons: tuple[str, ...] = ()
 
     def __repr__(self) -> str:
         return f"OutboundMessage(channel={self.channel.value}, template={self.template_name})"
@@ -53,3 +58,9 @@ class ReminderSender(Protocol):
     channel: ReminderChannel
 
     async def send(self, message: OutboundMessage) -> SendResult: ...
+
+
+class SessionTextSender(Protocol):
+    """Envía un texto libre de WhatsApp dentro de la ventana de 24 h (C-10, D8)."""
+
+    async def send_text(self, sender_id: str, to: str, body: str) -> SendResult: ...

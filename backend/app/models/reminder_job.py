@@ -71,6 +71,13 @@ class ReminderJob(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ),
         # Agregado de costo y envíos por clínica y paso (RN-WA-05).
         Index("ix_reminder_job_clinic_step_sent", "clinic_id", "step", "sent_at"),
+        # Búsqueda del webhook por el id de Meta (C-10, D1/D6); los ids del proveedor son únicos.
+        Index(
+            "uq_reminder_job_provider_message_id",
+            "provider_message_id",
+            unique=True,
+            postgresql_where=text("provider_message_id IS NOT NULL"),
+        ),
     )
 
     appointment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)

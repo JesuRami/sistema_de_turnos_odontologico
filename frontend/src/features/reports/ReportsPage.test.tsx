@@ -6,7 +6,8 @@ import type {
   AuditEvent,
   CancellationsReport,
   OccupancyReport,
-  Page
+  Page,
+  WhatsAppReport
 } from "../../shared/api/types";
 import { RequireRole } from "../../shared/auth/guards";
 import { agendaHandlers } from "../../test/fixtures";
@@ -77,6 +78,35 @@ const CANCELACIONES: CancellationsReport = {
   ]
 };
 
+function filaWa(step: string, channel: "whatsapp" | "email", sent = 0): WhatsAppReport["rows"][number] {
+  return { step, channel, sent, delivered: 0, read: 0, failed: 0, cost_usd: "0.000000" };
+}
+
+const WHATSAPP: WhatsAppReport = {
+  from_date: "2030-01-01",
+  to_date: "2030-01-31",
+  currency: "USD",
+  rows: [
+    filaWa("created", "whatsapp"),
+    filaWa("created", "email"),
+    filaWa("t_72h", "whatsapp"),
+    filaWa("t_72h", "email"),
+    {
+      step: "t_24h",
+      channel: "whatsapp",
+      sent: 3,
+      delivered: 2,
+      read: 1,
+      failed: 1,
+      cost_usd: "0.037500"
+    },
+    filaWa("t_24h", "email"),
+    filaWa("t_3h", "whatsapp"),
+    filaWa("t_3h", "email")
+  ],
+  totals: { sent: 3, delivered: 2, read: 1, failed: 1, cost_usd: "0.037500" }
+};
+
 function evento(n: number): AuditEvent {
   return {
     id: `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`,
@@ -97,6 +127,7 @@ function handlersBase(): void {
     http.get("/api/reports/occupancy", () => HttpResponse.json(OCUPACION)),
     http.get("/api/reports/absenteeism", () => HttpResponse.json(AUSENTISMO)),
     http.get("/api/reports/cancellations", () => HttpResponse.json(CANCELACIONES)),
+    http.get("/api/reports/whatsapp", () => HttpResponse.json(WHATSAPP)),
     http.get("/api/audit/appointments", () =>
       HttpResponse.json({ items: [evento(1)], next_cursor: null } satisfies Page<AuditEvent>)
     )
@@ -131,16 +162,20 @@ describe("ReportsPage", () => {
     expect(screen.queryByRole("tablist", { name: "Reportes" })).not.toBeInTheDocument();
   });
 
-  it("muestra las cuatro pestañas y el mes en curso en la hora de la clínica", async () => {
+  it("muestra las cinco pestañas y el mes en curso en la hora de la clínica", async () => {
     await renderAdmin();
 
     expect(await screen.findByRole("tab", { name: "Ocupación" })).toHaveAttribute(
       "aria-selected",
       "true"
     );
-    for (const nombre of ["Ausentismo", "Cancelaciones", "Auditoría"]) {
-      expect(screen.getByRole("tab", { name: nombre })).toBeInTheDocument();
-    }
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Ocupación",
+      "Ausentismo",
+      "Cancelaciones",
+      "WhatsApp",
+      "Auditoría"
+    ]);
     expect(screen.getByLabelText("Desde")).toHaveValue("2030-01-01");
     expect(screen.getByLabelText("Hasta")).toHaveValue("2030-01-31");
   });
@@ -369,5 +404,99 @@ describe("ReportsPage", () => {
     await user.selectOptions(screen.getByLabelText("Tipo de evento"), "cancelled");
 
     await waitFor(() => expect(tipos).toContain("cancelled"));
+  });
+
+  it("WhatsApp: filas por paso con etiquetas legibles, costo y total", async () => {
+    const pedidos: URLSearchParams[] = [];
+    server.use(
+      http.get("/api/reports/whatsapp", ({ request }) => {
+        pedidos.push(new URL(request.url).searchParams);
+        return HttpResponse.json(WHATSAPP);
+      })
+    );
+    const { user } = await renderAdmin();
+
+    await user.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+
+    const tabla = await screen.findByRole("table", { name: "Mensajes por paso y canal" });
+    expect(within(tabla).getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
+      "Paso",
+      "Canal",
+      "Enviados",
+      "Entregados",
+      "Leídos",
+      "Fallidos",
+      "Costo (USD)"
+    ]);
+    expect(
+      within(tabla).getByRole("row", { name: /24 h antes WhatsApp 3 2 1 1 0,0375/ })
+    ).toBeInTheDocument();
+    expect(within(tabla).getAllByText("Alta de turno")).toHaveLength(2);
+    expect(within(tabla).getByRole("row", { name: /Total 3 2 1 1 0,0375/ })).toBeInTheDocument();
+    expect(pedidos[0]?.get("from")).toBe("2030-01-01");
+    expect(pedidos[0]?.get("to")).toBe("2030-01-31");
+  });
+
+  it("WhatsApp: sin envíos muestra el mensaje de vacío", async () => {
+    server.use(
+      http.get("/api/reports/whatsapp", () =>
+        HttpResponse.json({
+          ...WHATSAPP,
+          rows: WHATSAPP.rows.map((f) => ({ ...f, sent: 0, delivered: 0, read: 0, failed: 0 })),
+          totals: { sent: 0, delivered: 0, read: 0, failed: 0, cost_usd: "0.000000" }
+        } satisfies WhatsAppReport)
+      )
+    );
+    const { user } = await renderAdmin();
+
+    await user.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+
+    expect(
+      await screen.findByText("No se enviaron mensajes de recordatorio en este período.")
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("WhatsApp: un 422 se explica en lenguaje claro y conserva los filtros", async () => {
+    server.use(
+      http.get("/api/reports/whatsapp", () =>
+        HttpResponse.json({ detail: "invalid_range" }, { status: 422 })
+      )
+    );
+    const { user } = await renderAdmin();
+
+    await user.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("El rango de fechas no es válido");
+    expect(screen.getByLabelText("Desde")).toHaveValue("2030-01-01");
+  });
+
+  it("WhatsApp: «Descargar CSV» pide el reporte con el rango activo", async () => {
+    const formatos: (string | null)[] = [];
+    server.use(
+      http.get("/api/reports/whatsapp", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        if (params.get("format") === "csv") {
+          formatos.push(`${params.get("from")}|${params.get("to")}`);
+          return new HttpResponse("step,channel\r\n", { headers: { "Content-Type": "text/csv" } });
+        }
+        return HttpResponse.json(WHATSAPP);
+      })
+    );
+    const nombres: string[] = [];
+    URL.createObjectURL = vi.fn(() => "blob:wa");
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      nombres.push(this.download);
+    });
+    const { user } = await renderAdmin();
+    await user.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+
+    await user.click(await screen.findByRole("button", { name: "Descargar CSV" }));
+
+    await waitFor(() => expect(nombres).toEqual(["whatsapp-2030-01-01-2030-01-31.csv"]));
+    expect(formatos).toEqual(["2030-01-01|2030-01-31"]);
   });
 });

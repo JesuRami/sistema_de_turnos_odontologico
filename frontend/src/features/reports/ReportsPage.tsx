@@ -1,5 +1,5 @@
 /**
- * Reportes y auditoría para administración (C-13, US-050/US-051).
+ * Reportes y auditoría para administración (C-13, US-050/US-051; pestaña WhatsApp en C-10).
  * Rango por defecto: el mes en curso en la zona de la clínica. Todo se calcula en el
  * backend desde la auditoría; esta pantalla solo presenta y descarga.
  */
@@ -14,15 +14,17 @@ import {
   AuditPanel,
   CancellationsPanel,
   DownloadButton,
-  OccupancyPanel
+  OccupancyPanel,
+  WhatsAppPanel
 } from "./Panels";
 
-type TabId = "occupancy" | "absenteeism" | "cancellations" | "audit";
+type TabId = "occupancy" | "absenteeism" | "cancellations" | "whatsapp" | "audit";
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: "occupancy", label: "Ocupación" },
   { id: "absenteeism", label: "Ausentismo" },
   { id: "cancellations", label: "Cancelaciones" },
+  { id: "whatsapp", label: "WhatsApp" },
   { id: "audit", label: "Auditoría" }
 ];
 
@@ -125,6 +127,7 @@ function ReportsPage(): JSX.Element {
           {tab === "occupancy" && <OccupancyPanel range={range} />}
           {tab === "absenteeism" && <AbsenteeismPanel range={range} />}
           {tab === "cancellations" && <CancellationsPanel range={range} />}
+          {tab === "whatsapp" && <WhatsAppPanel range={range} />}
           {tab === "audit" && (
             <AuditPanel
               range={range}

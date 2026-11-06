@@ -8,7 +8,7 @@
 - **Identidad**: un número por clínica (preferido: la clínica aporta su Business Manager; alternativa transitoria: número compartido con remitente identificado — ver pregunta abierta en `10`). Los templates se aprueban por número/remitente.
 - **Categoría de mensajes**: `utility` (recordatorios, confirmaciones, ofertas de lista de espera). Nada promocional por este canal en v1.0.
 - **Idioma**: `es_AR` en todas las plantillas. Fecha/hora en formato argentino explícito ("jueves 9/10, 15:30") para evitar ambigüedad.
-- **Opt-in/opt-out**: opt-in en reserva o cargado por recepción; opt-out por palabra (STOP, BAJA, "no me escriban") procesado en webhook y efectivo de inmediato. Sin opt-in no hay envío (RN-WA-01). Cada cambio de consentimiento se audita con fuente.
+- **Opt-in/opt-out**: opt-in en reserva o cargado por recepción; opt-out por palabra (STOP, BAJA, "no me escriban") procesado en webhook y efectivo de inmediato. Sin opt-in no hay envío (RN-WA-01). Cada cambio de consentimiento se audita con fuente. Una baja sin mensaje citado, en un número compartido por varias clínicas, da de baja **todas** las fichas con ese teléfono (ante la duda, no escribir; decisión 2026-11-06); recepción puede reactivar el canal (`PUT /api/patients/{id}/consent/{canal}`). Las respuestas se asocian al turno por el mensaje citado y, sin él, solo si hay un único turno futuro vigente para ese teléfono; si no, no se toca ningún turno.
 
 ## 2. Plantillas (a aprobar en Meta antes del piloto)
 
@@ -34,7 +34,7 @@
 1. Tick cada 60 s (cron de ARQ): `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 100` sobre jobs vencidos en estado `scheduled`; los jobs válidos pasan a `sending` (**lease** de 5 min: si el worker muere, vuelven a `scheduled`) y el envío ocurre **fuera** de la transacción, con un re-chequeo del turno justo antes.
 2. Validaciones previas al envío: turno vigente y no iniciado, horario vigente (`starts_at` igual al del job), opt-in del canal, destinatario, plantilla activa, ventana 24 h de Meta (elige plantilla vs. seguimiento libre para respuestas; C-09 siempre envía plantilla porque aún no hay mensajes entrantes).
 3. Envío + guardado de `provider_message_id`; job → `sent`.
-4. Webhooks (`delivery`, `read`, `failed`, reply del paciente) actualizan job y `delivery_event`; la respuesta SÍ/NO ejecuta la transición de estado del turno (idempotente por `provider_event_id`).
+4. Webhooks (`delivered`, `read`, `failed`, respuesta del paciente) actualizan el job (en orden `sent → delivered → read`, sin retroceder) y `delivery_event`. "SÍ" ejecuta la misma transición que el link (`pending → confirmed`, idempotente); **"NO"/cambiar nunca cancela**: responde con el link de gestión si la ventana de cancelación sigue abierta o con el teléfono de la clínica si cerró (decisión 2026-11-06). Las respuestas no salen desde el webhook: van a un outbox (`whatsapp_outbound_reply`) que el worker envía como texto libre dentro de la ventana de 24 h. Cada evento de Meta se deduplica (estado por `(mensaje, estado)`, entrante por su id y clínica). Ver C-10.
 5. Reintentos con backoff (5 min → 30 min; `REMINDER_BACKOFF_MINUTES=5,30,120`); tras 3 intentos (`REMINDER_MAX_ATTEMPTS`) → `failed` + escalado a email si hay dirección y no hay baja de ese canal (se crea el job de email del mismo paso). La alerta visible a recepción queda para una UI posterior.
 
 ### Idempotencia y seguridad del motor

@@ -8,10 +8,21 @@ import {
   useAudit,
   useCancellations,
   useOccupancy,
+  useWhatsAppReport,
   type DateRange
 } from "./api";
 import { downloadFile } from "./download";
-import { EVENT_LABEL, formatInstant, hours, percent, rate, REASON_LABEL } from "./format";
+import {
+  CHANNEL_LABEL,
+  EVENT_LABEL,
+  formatInstant,
+  hours,
+  percent,
+  rate,
+  REASON_LABEL,
+  stepLabel,
+  usd
+} from "./format";
 
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -252,6 +263,70 @@ export function CancellationsPanel({ range }: { range: DateRange }): JSX.Element
                   </tr>
                 ))}
               </tbody>
+            </table>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+export function WhatsAppPanel({ range }: { range: DateRange }): JSX.Element {
+  const informe = useWhatsAppReport(range);
+  return (
+    <div className="space-y-3">
+      <DownloadButton
+        label="Descargar CSV"
+        path="/api/reports/whatsapp"
+        query={{ ...range, format: "csv" }}
+        filename={`whatsapp-${range.from}-${range.to}.csv`}
+      />
+      <Alert tone="info">
+        Cuenta los mensajes enviados en el período y lo que Meta informó después (entregado, leído
+        o fallido). El costo es el estimado por mensaje configurado para la clínica.
+      </Alert>
+      {informe.isPending && <Loading />}
+      {informe.isError && <Alert>{describeError(informe.error)}</Alert>}
+      {informe.data !== undefined &&
+        (informe.data.totals.sent === 0 ? (
+          <Empty>No se enviaron mensajes de recordatorio en este período.</Empty>
+        ) : (
+          <div className="overflow-x-auto rounded bg-white p-2 shadow-sm">
+            <table className={TABLA}>
+              <caption className="sr-only">Mensajes por paso y canal</caption>
+              <thead>
+                <tr>
+                  <th scope="col" className={TH}>Paso</th>
+                  <th scope="col" className={TH}>Canal</th>
+                  <th scope="col" className={TH}>Enviados</th>
+                  <th scope="col" className={TH}>Entregados</th>
+                  <th scope="col" className={TH}>Leídos</th>
+                  <th scope="col" className={TH}>Fallidos</th>
+                  <th scope="col" className={TH}>Costo (USD)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {informe.data.rows.map((f) => (
+                  <tr key={`${f.step}-${f.channel}`} className="border-t border-dental-600/10">
+                    <th scope="row" className={`${TD} font-normal`}>{stepLabel(f.step)}</th>
+                    <td className={TD}>{CHANNEL_LABEL[f.channel] ?? f.channel}</td>
+                    <td className={TD}>{f.sent}</td>
+                    <td className={TD}>{f.delivered}</td>
+                    <td className={TD}>{f.read}</td>
+                    <td className={TD}>{f.failed}</td>
+                    <td className={TD}>{usd(f.cost_usd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-dental-600/30 font-medium">
+                  <th scope="row" colSpan={2} className={TD}>Total</th>
+                  <td className={TD}>{informe.data.totals.sent}</td>
+                  <td className={TD}>{informe.data.totals.delivered}</td>
+                  <td className={TD}>{informe.data.totals.read}</td>
+                  <td className={TD}>{informe.data.totals.failed}</td>
+                  <td className={TD}>{usd(informe.data.totals.cost_usd)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         ))}

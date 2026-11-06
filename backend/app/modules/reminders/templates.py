@@ -18,18 +18,39 @@ ALLOWED_VARIABLES = frozenset({"nombre", "clinica", "fecha", "hora", "profesiona
 _VARIABLE = re.compile(r"\{\{(\w+)\}\}")
 
 
+# Payloads de los botones de respuesta rápida que el webhook interpreta (C-10, D4/D7).
+BUTTON_CONFIRM = "confirm"
+BUTTON_CHANGE = "change"
+BUTTON_CANCEL = "cancel"
+
+
 @dataclass(frozen=True, slots=True)
 class TemplateSpec:
-    """Una fila por defecto de `notification_template`."""
+    """Una fila por defecto de `notification_template`.
+
+    Para WhatsApp (C-10) suma lo que la Cloud API necesita y la base no guarda: el orden de los
+    parámetros posicionales del cuerpo (`{{1}}`, `{{2}}`…) y los payloads de los botones de
+    respuesta rápida, en el orden en que se aprobaron en Meta.
+    """
 
     channel: str
     step: str
     meta_template_name: str
     body_preview: str
+    buttons: tuple[str, ...] = ()
 
     @property
     def variables(self) -> frozenset[str]:
         return frozenset(_VARIABLE.findall(self.body_preview))
+
+    @property
+    def param_order(self) -> tuple[str, ...]:
+        return param_order_of(self.body_preview)
+
+
+def param_order_of(body: str) -> tuple[str, ...]:
+    """Variables en el orden de su primera aparición en el cuerpo (su posición en Meta)."""
+    return tuple(dict.fromkeys(_VARIABLE.findall(body)))
 
 
 DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
@@ -39,6 +60,7 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         "turno_creado_v1",
         "Hola {{nombre}}, tu turno en {{clinica}} es el {{fecha}} a las {{hora}} "
         "con {{profesional}}. Confirmalo acá: {{link}}",
+        (BUTTON_CONFIRM, BUTTON_CHANGE),
     ),
     TemplateSpec(
         "whatsapp",
@@ -46,6 +68,7 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         "recordatorio_72h_v1",
         "Hola {{nombre}}, te recordamos tu turno del {{fecha}} {{hora}} con "
         "{{profesional}}. ¿Confirmás? {{link}}",
+        (BUTTON_CONFIRM, BUTTON_CHANGE),
     ),
     TemplateSpec(
         "whatsapp",
@@ -53,12 +76,14 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         "recordatorio_24h_v1",
         "Mañana {{hora}} tenés turno con {{profesional}} en {{clinica}}. Respondé SÍ para "
         "confirmar o tocá para cambiar: {{link}}",
+        (BUTTON_CONFIRM, BUTTON_CHANGE),
     ),
     TemplateSpec(
         "whatsapp",
         "t_3h",
         "recordatorio_3h_v1",
         "Hoy {{hora}} te esperamos en {{clinica}}. Llegá 10 min antes. {{link}}",
+        (BUTTON_CANCEL,),
     ),
     TemplateSpec(
         "email",
@@ -89,3 +114,19 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         "{{profesional}}. Llegá 10 minutos antes. Gestioná tu turno: {{link}}",
     ),
 )
+
+
+def whatsapp_template(meta_template_name: str) -> TemplateSpec:
+    """Plantilla de WhatsApp del catálogo por su nombre en Meta; `KeyError` si no existe."""
+    for spec in DEFAULT_TEMPLATES:
+        if spec.channel == "whatsapp" and spec.meta_template_name == meta_template_name:
+            return spec
+    raise KeyError(meta_template_name)
+
+
+def whatsapp_buttons(step: str) -> tuple[str, ...]:
+    """Botones de la plantilla de WhatsApp del paso; pasos sin plantilla de catálogo, ninguno."""
+    for spec in DEFAULT_TEMPLATES:
+        if spec.channel == "whatsapp" and spec.step == step:
+            return spec.buttons
+    return ()

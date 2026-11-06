@@ -17,9 +17,11 @@ from app.common.clock import get_now
 from app.common.dependencies import require_roles
 from app.common.principal import Principal
 from app.core.deps import get_db
-from app.models import UserRole
+from app.models import ReminderChannel, UserRole
 from app.modules.patients.merge import merge_patients
 from app.modules.patients.schemas import (
+    ConsentChange,
+    ConsentRead,
     PatientCreate,
     PatientDetail,
     PatientMergeRequest,
@@ -69,3 +71,15 @@ async def merge_patient(
 ) -> PatientMergeResult:
     """Fusiona este paciente (duplicado) en `into_patient_id`; irreversible y auditado."""
     return await merge_patients(session, principal, patient_id, payload, now)
+
+
+@router.put("/patients/{patient_id}/consent/{channel}", response_model=ConsentRead)
+async def set_patient_consent(
+    patient_id: uuid.UUID,
+    channel: ReminderChannel,
+    payload: ConsentChange,
+    principal: FrontDeskDep,
+    session: DbSession,
+) -> ConsentRead:
+    """Opt-in/opt-out de un canal cargado por el personal (C-10); auditado con su usuario."""
+    return await PatientsService(session, principal).set_consent(patient_id, channel, payload)

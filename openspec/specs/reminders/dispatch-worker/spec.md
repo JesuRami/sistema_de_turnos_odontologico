@@ -140,8 +140,9 @@ ese canal, el sistema SHALL crear el job de email del mismo paso.
 
 Cada envío exitoso SHALL guardar `provider_message_id`, el instante de envío y el
 costo estimado del canal, y SHALL registrar un evento en `delivery_event`,
-append-only, por cada intento, envío, salto, cancelación y escalado. El costo
-SHALL poder agregarse por clínica y paso.
+append-only, por cada intento, envío, salto, cancelación, escalado y estado
+informado por el proveedor (`delivered`, `read`, `failed`). El costo SHALL poder
+agregarse por clínica y paso.
 
 #### Scenario: Envío exitoso
 
@@ -160,11 +161,16 @@ SHALL poder agregarse por clínica y paso.
 - **WHEN** se intenta modificar o borrar una fila de `delivery_event`
 - **THEN** la base lo rechaza
 
+#### Scenario: Estado informado por el proveedor
+
+- **WHEN** Meta informa que un mensaje enviado fue entregado
+- **THEN** existe un evento `delivered` asociado al job de ese mensaje
+
 ### Requirement: Canales detrás de un puerto y sin envíos falsos
 
 Los envíos SHALL pasar por un puerto por canal. Mientras el proveedor del canal
 esté deshabilitado el worker SHALL NOT reclamar sus jobs ni marcarlos como
-enviados.
+enviados. WhatsApp SHALL admitir los proveedores `disabled`, `fake` y `meta`.
 
 #### Scenario: WhatsApp deshabilitado
 
@@ -176,6 +182,11 @@ enviados.
 - **WHEN** el worker envía y falla un recordatorio
 - **THEN** ni los logs ni `last_error` ni los eventos contienen nombre, teléfono,
   email ni el link del paciente
+
+#### Scenario: Proveedor real
+
+- **WHEN** el proveedor de WhatsApp es `meta` y vence un job de WhatsApp válido
+- **THEN** el mensaje se envía por la Cloud API de Meta
 
 ### Requirement: Contenido del mensaje
 
@@ -197,8 +208,8 @@ clínica, profesional, fecha y hora en formato argentino y zona de la clínica
 ### Requirement: Ventana de 24 h de Meta
 
 El sistema SHALL usar plantilla aprobada para todo recordatorio proactivo y SHALL
-permitir un seguimiento libre solo dentro de las 24 h posteriores a un mensaje
-entrante del paciente.
+permitir un seguimiento libre solo dentro de las 24 h posteriores al último
+mensaje entrante registrado del paciente en esa clínica.
 
 #### Scenario: Sin mensaje entrante
 
@@ -209,3 +220,13 @@ entrante del paciente.
 
 - **WHEN** el paciente escribió hace 2 horas
 - **THEN** la elección habilita el seguimiento libre para esa respuesta
+
+#### Scenario: Recordatorio con ventana abierta
+
+- **WHEN** el paciente escribió hace 2 horas y vence su recordatorio de 3 h
+- **THEN** el recordatorio igual se envía como plantilla
+
+#### Scenario: Ventana vencida
+
+- **WHEN** el último mensaje entrante del paciente fue hace 25 horas
+- **THEN** la elección no habilita el seguimiento libre

@@ -495,11 +495,11 @@ cancelación y escalado queda en `delivery_event` (sin datos personales).
 
 | Variable | Valores | Efecto |
 |---|---|---|
-| `REMINDER_WHATSAPP_PROVIDER` | `disabled` (default), `fake` | `disabled`: el worker no reclama jobs de WhatsApp ni los marca enviados. El valor `meta` llega con C-10. |
+| `REMINDER_WHATSAPP_PROVIDER` | `disabled` (default), `fake`, `meta` | `disabled`: el worker no reclama jobs de WhatsApp ni los marca enviados. `meta`: Cloud API (ver «Canal WhatsApp (C-10)»). |
 | `REMINDER_EMAIL_PROVIDER` | `disabled` (default), `smtp`, `fake` | `smtp` usa `EMAIL_HOST/PORT/USER/PASSWORD/FROM`: puerto 465 = TLS implícito, 587 = STARTTLS, otro = sin cifrar (solo desarrollo). |
 | `REMINDER_MAX_ATTEMPTS` · `REMINDER_BACKOFF_MINUTES` | `3` · `5,30,120` | Intentos totales y espera tras cada fallo. |
 | `REMINDER_LEASE_MINUTES` · `REMINDER_TICK_BUDGET_S` · `REMINDER_BATCH_SIZE` | `5` · `50` · `100` | Plazo del lease, presupuesto de tiempo del tick y tamaño del lote. |
-| `REMINDER_COST_WHATSAPP_MICROS` · `REMINDER_COST_EMAIL_MICROS` | `0` | Costo estimado por mensaje en USD × 10⁻⁶, copiado a `reminder_job.cost_micros` (RN-WA-05). |
+| `REMINDER_COST_WHATSAPP_MICROS` · `REMINDER_COST_EMAIL_MICROS` | `0` | Costo estimado por mensaje en USD × 10⁻⁶, copiado a `reminder_job.cost_micros` y, desde C-10, al evento `sent` (`payload.cost_micros`), que es lo que suma el reporte (RN-WA-05). |
 
 Para probar el flujo en desarrollo sin proveedor real, poné `REMINDER_WHATSAPP_PROVIDER=fake` (los
 envíos se descartan y solo se loguean metadatos) o `REMINDER_EMAIL_PROVIDER=smtp` apuntando a un
@@ -510,7 +510,7 @@ Garantías y límites: el envío es **al menos una vez** (si el worker muere ent
 registro del resultado, el lease reenvía); un job de un turno ya iniciado se salta, nunca se
 marca `sent`; una cancelación que llega entre el re-chequeo y el envío puede dejar salir un
 mensaje (ventana de milisegundos). Un paso ya enviado no se reenvía al reprogramar (hace falta una
-plantilla "turno reprogramado", prevista para C-10). Los pasos salen a `starts_at − offset` aunque
+plantilla "turno reprogramado"; quedó fuera de C-10 y no tiene change asignado). Los pasos salen a `starts_at − offset` aunque
 caigan de madrugada: no hay ventana de silencio nocturno todavía.
 
 ### Revisión `c09_reminder_engine` (C-09)
@@ -520,6 +520,110 @@ Tablas nuevas y vacías (`notification_template`, `reminder_job`, `delivery_even
 Carga el consentimiento previo (`legacy`) y las plantillas de las clínicas existentes. Downgrade:
 `alembic downgrade c08_manage_token` elimina las cuatro tablas y sus enums; `patient.whatsapp_opt_in`
 no se toca.
+
+## Canal WhatsApp (C-10)
+
+Envío por la WhatsApp Cloud API de Meta y webhook de respuestas. Diseño completo:
+`openspec/changes/c-10-whatsapp-webhook/design.md` (o su copia archivada).
+
+### Configuración
+
+| Variable | Uso |
+|---|---|
+| `REMINDER_WHATSAPP_PROVIDER=meta` | Activa el envío real. Exige las cuatro siguientes (el arranque falla nombrando la que falta, sin mostrar valores). |
+| `WHATSAPP_TOKEN` | Token de acceso de sistema de Meta (secreto; solo viaja en `Authorization`). |
+| `META_APP_SECRET` | Secreto de la app: firma `X-Hub-Signature-256` del webhook (secreto). Vacío → todo POST al webhook es 401. |
+| `META_PHONE_NUMBER_ID` | `phone_number_id` del **número compartido**, usado por las clínicas sin número propio. |
+| `META_VERIFY_TOKEN` | Token del handshake de suscripción. Vacío → todo GET al webhook es 403. |
+| `META_API_VERSION` · `META_GRAPH_BASE_URL` | `v19.0` · `https://graph.facebook.com`. |
+| `WHATSAPP_HTTP_TIMEOUT_S` · `WHATSAPP_WEBHOOK_MAX_BYTES` · `WHATSAPP_REPLY_MAX_ATTEMPTS` | `10` · `1048576` (413 si se excede) · `3`. |
+
+### Número propio o compartido
+
+`clinic.whatsapp_phone_number_id` (solo dígitos, único) es el número propio de la clínica; vacío
+= usa el compartido. La decisión comercial (quién paga el Business Manager y el número) sigue
+abierta en `knowledge-base/10_preguntas_abiertas.md`; el sistema soporta ambos. No hay UI para
+cargarlo todavía:
+
+```sql
+UPDATE clinic SET whatsapp_phone_number_id = '<phone_number_id de Meta>' WHERE slug = '<slug>';
+```
+
+### Alta del webhook en Meta
+
+1. En la app de Meta → WhatsApp → Configuración → Webhook: URL
+   `https://<api>/webhooks/whatsapp`, token de verificación = `META_VERIFY_TOKEN`.
+2. Suscribir el campo `messages` (trae mensajes entrantes y estados de entrega).
+3. El path está fuera del rate-limit global: la firma es la autenticación.
+
+Respuestas: 200 si se procesó o si el payload firmado no tiene la estructura esperada (se
+registra `webhook_payload_invalid`, para que Meta no reintente); 401 sin firma válida; 413 si
+excede el tope; 500 si un evento falló por un error inesperado (Meta reintenta y la
+deduplicación descarta lo ya aplicado). **Excepción a la regla 2**: el payload de Meta se parsea
+con `extra='ignore'` y solo después de verificar la firma (ver `AGENTS.md`).
+
+### Plantillas a aprobar en Meta
+
+Categoría `utility`, idioma `es_AR`, parámetros **posicionales** en este orden y botones de
+respuesta rápida con estos payloads (el catálogo vive en `app/modules/reminders/templates.py`; un
+test verifica orden y botones):
+
+| Nombre | Paso | Cuerpo | Parámetros | Botones (payload) |
+|---|---|---|---|---|
+| `turno_creado_v1` | `created` | Hola {{1}}, tu turno en {{2}} es el {{3}} a las {{4}} con {{5}}. Confirmalo acá: {{6}} | {{1}} nombre, {{2}} clinica, {{3}} fecha, {{4}} hora, {{5}} profesional, {{6}} link | `confirm` · `change` |
+| `recordatorio_72h_v1` | `t_72h` | Hola {{1}}, te recordamos tu turno del {{2}} {{3}} con {{4}}. ¿Confirmás? {{5}} | {{1}} nombre, {{2}} fecha, {{3}} hora, {{4}} profesional, {{5}} link | `confirm` · `change` |
+| `recordatorio_24h_v1` | `t_24h` | Mañana {{1}} tenés turno con {{2}} en {{3}}. Respondé SÍ para confirmar o tocá para cambiar: {{4}} | {{1}} hora, {{2}} profesional, {{3}} clinica, {{4}} link | `confirm` · `change` |
+| `recordatorio_3h_v1` | `t_3h` | Hoy {{1}} te esperamos en {{2}}. Llegá 10 min antes. {{3}} | {{1}} hora, {{2}} clinica, {{3}} link | `cancel` |
+Textos de los botones sugeridos: `confirm` → «Confirmar» / «Sí, confirmo» / «SÍ»; `change` →
+«Cambiar» / «Reprogramar»; `cancel` → «Cancelar». Si Meta rechaza un texto se puede cambiar el
+cuerpo sin tocar código mientras se respeten el orden de parámetros y los botones. Sin
+`{{direccion}}` ni «Cómo llegar» (la clínica no guarda dirección).
+
+### Respuestas del paciente
+
+| Mensaje | Efecto | Respuesta (texto libre dentro de las 24 h) |
+|---|---|---|
+| «SÍ», «si», «confirmo», botón `confirm` | `pending → confirmed` (misma transición que el link, fuente `whatsapp`); ya confirmado = no-op auditado | «¡Listo! Tu turno … quedó confirmado.» |
+| «NO», «cambiar», «reprogramar», «cancelar», botones `change`/`cancel` | **nunca cancela** | link de gestión si la ventana de cancelación sigue abierta; si no, teléfono de la clínica |
+| «STOP», «BAJA», «no me escriban» | opt-out de WhatsApp (`whatsapp_reply`), jobs pendientes `skipped` | confirmación de baja (una sola) |
+| cualquier otra cosa | solo se registra (habilita la ventana de 24 h) | ninguna |
+
+Enrutamiento: por el mensaje citado (`context.id` → `reminder_job.provider_message_id`); sin
+contexto, por teléfono entre las clínicas del número que recibió el mensaje. Con cero o varios
+turnos candidatos no se toca ninguno y se responde que use el link; un STOP sin contexto da de
+baja todas las fichas con ese teléfono en ese número. Las respuestas van al outbox
+`whatsapp_outbound_reply` y las envía el worker en el mismo tick que los recordatorios.
+`whatsapp_inbound` no guarda el texto ni el teléfono.
+
+El personal cambia el consentimiento con `PUT /api/patients/{id}/consent/{whatsapp|email}`
+(`{"status": "opt_in" | "opt_out"}`, admin/recepción).
+
+### Reporte
+
+`GET /api/reports/whatsapp?from=&to=[&format=csv]` (solo admin): enviados, entregados, leídos y
+fallidos por paso y canal más el costo atribuido, calculado sobre `delivery_event`. Pestaña
+«WhatsApp» en `/admin/reportes`.
+
+### Probar en desarrollo
+
+`REMINDER_WHATSAPP_PROVIDER=fake` registra los envíos y las respuestas sin llamar a Meta. Para
+simular un webhook firmado:
+
+```bash
+BODY='{"object":"whatsapp_business_account","entry":[{"changes":[{"field":"messages","value":{"metadata":{"phone_number_id":"<META_PHONE_NUMBER_ID>"},"statuses":[]}}]}]}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$META_APP_SECRET" | sed 's/^.* //')
+curl -X POST localhost:8000/webhooks/whatsapp -H "X-Hub-Signature-256: sha256=$SIG" -H 'Content-Type: application/json' -d "$BODY"
+```
+
+Antes del piloto: validar un payload real del número de prueba de Meta contra
+`app/modules/notifications/payload.py`.
+
+### Revisión `c10_whatsapp_channel` (C-10)
+
+`clinic.whatsapp_phone_number_id` (nullable, CHECK `NOT VALID` → `VALIDATE`), únicos parciales
+`CONCURRENTLY` sobre `clinic.whatsapp_phone_number_id` y `reminder_job.provider_message_id`, tablas
+nuevas `whatsapp_inbound` (append-only) y `whatsapp_outbound_reply` y tres enums. Downgrade:
+`alembic downgrade c09_reminder_engine` (los `consent` de fuente `whatsapp_reply` quedan).
 
 ## Seed del tenant inicial
 

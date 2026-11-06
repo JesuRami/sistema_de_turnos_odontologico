@@ -21,6 +21,8 @@ TABLAS = {
     "reminder_job",
     "delivery_event",
     "consent",
+    "whatsapp_inbound",
+    "whatsapp_outbound_reply",
 }
 INDICES = {
     "uq_clinic_slug",
@@ -72,6 +74,9 @@ ENUMS = {
     "consent_status",
     "consent_source",
     "delivery_event_type",
+    "whatsapp_intent",
+    "whatsapp_reply_kind",
+    "whatsapp_reply_status",
 }
 
 
@@ -628,3 +633,65 @@ def test_backfill_de_c09_registra_el_consentimiento_legacy_y_las_plantillas(
     )
     assert sorted(por_clinica) == [(len(DEFAULT_TEMPLATES),), (len(DEFAULT_TEMPLATES),)]
     assert len(DEFAULT_TEMPLATES) == 8
+
+
+# ------------------------------------------------------------------ C-10 whatsapp-webhook
+
+
+def test_ciclo_de_c10_con_datos_de_c09(temp_database: str) -> None:
+    """Con datos sintéticos de C-09, `upgrade` → `downgrade c09` → `upgrade` funciona y valida.
+
+    Regla 11: el CHECK de `clinic` queda validado y los dos únicos parciales `CONCURRENTLY`
+    quedan válidos; el downgrade no deja tablas, enums, columna ni índices del change.
+    """
+    cfg = alembic_config()
+    command.upgrade(cfg, "c09_reminder_engine")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia', 'clinica-c10-ciclo')", ()),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164, whatsapp_opt_in) "
+            "SELECT id, 'Paciente Ficticio', '+5491155550104', true FROM clinic",
+            (),
+        ),
+    )
+
+    command.upgrade(cfg, "head")
+    assert {"whatsapp_inbound", "whatsapp_outbound_reply"} <= _tablas(temp_database)
+    assert fetch_rows(
+        "SELECT convalidated FROM pg_constraint "
+        "WHERE conname = 'ck_clinic_whatsapp_phone_number_id_format'",
+        temp_database,
+    ) == [(True,)]
+    validos = fetch_rows(
+        "SELECT c.relname, i.indisvalid FROM pg_index i JOIN pg_class c "
+        "ON c.oid = i.indexrelid WHERE c.relname IN "
+        "('uq_clinic_whatsapp_phone_number_id', 'uq_reminder_job_provider_message_id') "
+        "ORDER BY c.relname",
+        temp_database,
+    )
+    assert validos == [
+        ("uq_clinic_whatsapp_phone_number_id", True),
+        ("uq_reminder_job_provider_message_id", True),
+    ]
+
+    command.downgrade(cfg, "c09_reminder_engine")
+    assert not {"whatsapp_inbound", "whatsapp_outbound_reply"} & _tablas(temp_database)
+    assert not {"whatsapp_intent", "whatsapp_reply_kind", "whatsapp_reply_status"} & _enums(
+        temp_database
+    )
+    assert not {
+        "uq_clinic_whatsapp_phone_number_id",
+        "uq_reminder_job_provider_message_id",
+    } & _indices(temp_database)
+    assert (
+        fetch_rows(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'clinic' AND column_name = 'whatsapp_phone_number_id'",
+            temp_database,
+        )
+        == []
+    )
+    assert fetch_rows("SELECT count(*) FROM patient", temp_database) == [(1,)]
+
+    command.upgrade(cfg, "head")

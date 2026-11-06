@@ -85,6 +85,7 @@ async def test_el_correo_llega_con_asunto_cuerpo_y_remitente(
     [sobre] = capturador.recibidos
     assert sobre.mail_from == REMITENTE
     assert sobre.rcpt_tos == [DESTINO]
+    assert isinstance(sobre.content, bytes)
     correo: Message = message_from_bytes(sobre.content)
     assert correo["Subject"] == "Recordatorio de tu turno"
     assert correo["From"] == REMITENTE and correo["To"] == DESTINO

@@ -26,7 +26,7 @@ Al levantar el proyecto en desarrollo (vía `.\dev.ps1` o ejecutando el seed), s
 
 | Rol | Correo Electrónico | Contraseña Predeterminada | Primer Ingreso |
 |---|---|---|---|
-| **Admin** | `admin@example.com` | `cambiar-esta-clave-provisoria` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
+| **Admin** | `admin@example.com` | `adminadminadmin` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
 | **Recepción** | `recepcion@example.com` | `cambiar-esta-clave-provisoria` | Ingreso directo a la agenda |
 | **Odontólogo** | `odontologo@example.com` | `cambiar-esta-clave-provisoria` | Ingreso directo a su agenda personal |
 

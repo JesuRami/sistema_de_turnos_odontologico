@@ -26,9 +26,9 @@ Al levantar el proyecto en desarrollo (vía `.\dev.ps1` o ejecutando el seed), s
 
 | Rol | Correo Electrónico | Contraseña Predeterminada | Primer Ingreso |
 |---|---|---|---|
-| **Admin** | `admin@example.com` | `adminadminadmin` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
-| **Recepción** | `recepcion@example.com` | `recepcionrecepcion` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
-| **Odontólogo** | `odontologo@example.com` | `odontologoodontologo` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
+| **Admin** | `admin@example.com` | `cambiar-esta-clave-provisoria` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
+| **Recepción** | `recepcion@example.com` | `cambiar-esta-clave-provisoria` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
+| **Odontólogo** | `odontologo@example.com` | `cambiar-esta-clave-provisoria` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
 
 > [!NOTE]
 > Las contraseñas provisorias salen de `SEED_ADMIN_PASSWORD`, `SEED_RECEPCION_PASSWORD` y `SEED_ODONTOLOGO_PASSWORD` del archivo `.env` (si las dos últimas faltan, se usa la del admin). El seed solo las aplica al **crear** cada usuario: cambiar el `.env` no modifica usuarios que ya existen en la base.

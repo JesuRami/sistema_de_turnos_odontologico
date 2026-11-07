@@ -67,8 +67,8 @@ function Start-Stack {
   Write-Host "  Reserva pública:  http://localhost:5174/b/clinica-demo"
   Write-Host "  Credenciales de acceso demo (ver DOCS_ROLES_Y_ACCESO.md):"
   Write-Host "    - Admin:       admin@example.com      (clave de SEED_ADMIN_PASSWORD, pide cambio al entrar)"
-  Write-Host "    - Recepción:   recepcion@example.com  (misma clave, acceso directo a agenda)"
-  Write-Host "    - Odontólogo:  odontologo@example.com (misma clave, vista restringida a sus turnos)"
+  Write-Host "    - Recepción:   recepcion@example.com  (misma clave, pide cambio al entrar)"
+  Write-Host "    - Odontólogo:  odontologo@example.com (misma clave, pide cambio al entrar; solo sus turnos)"
 }
 
 switch ($Command) {

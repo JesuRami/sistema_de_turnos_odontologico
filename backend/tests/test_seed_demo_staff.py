@@ -70,12 +70,12 @@ async def test_seed_con_demo_users_crea_un_usuario_por_cada_rol(db_session: Asyn
 
     recepcion = roles_map[UserRole.RECEPCION]
     assert recepcion.email == "recepcion@example.com"
-    assert recepcion.must_change_password is False
+    assert recepcion.must_change_password is True
 
     odontologo = roles_map[UserRole.ODONTOLOGO]
     assert odontologo.email == "odontologo@example.com"
     assert odontologo.professional_id == prof.id
-    assert odontologo.must_change_password is False
+    assert odontologo.must_change_password is True
 
 
 async def test_reejecucion_con_demo_users_es_idempotente(db_session: AsyncSession) -> None:

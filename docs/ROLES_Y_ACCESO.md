@@ -27,11 +27,11 @@ Al levantar el proyecto en desarrollo (vía `.\dev.ps1` o ejecutando el seed), s
 | Rol | Correo Electrónico | Contraseña Predeterminada | Primer Ingreso |
 |---|---|---|---|
 | **Admin** | `admin@example.com` | `adminadminadmin` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
-| **Recepción** | `recepcion@example.com` | `cambiar-esta-clave-provisoria` | Ingreso directo a la agenda |
-| **Odontólogo** | `odontologo@example.com` | `cambiar-esta-clave-provisoria` | Ingreso directo a su agenda personal |
+| **Recepción** | `recepcion@example.com` | `cambiar-esta-clave-provisoria` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
+| **Odontólogo** | `odontologo@example.com` | `cambiar-esta-clave-provisoria` | Solicita cambio de contraseña obligatorio (`/cambiar-clave`) |
 
 > [!NOTE]
-> La contraseña provisoria está configurada en la variable `SEED_ADMIN_PASSWORD` del archivo `.env`. Si modificás ese valor en tu archivo `.env`, aplicará a los usuarios creados al ejecutar el seed.
+> Las contraseñas provisorias salen de `SEED_ADMIN_PASSWORD`, `SEED_RECEPCION_PASSWORD` y `SEED_ODONTOLOGO_PASSWORD` del archivo `.env` (si las dos últimas faltan, se usa la del admin). El seed solo las aplica al **crear** cada usuario: cambiar el `.env` no modifica usuarios que ya existen en la base.
 
 ---
 
@@ -72,7 +72,7 @@ Navegá en tu navegador a:
 
 ### B. Ingresando como Recepción (`recepcion@example.com`)
 1. Ingresá `recepcion@example.com` y la contraseña `cambiar-esta-clave-provisoria`.
-2. Accederás de inmediato a la **Agenda de Recepción** (`/`).
+2. En el primer ingreso el sistema te redirige a `/cambiar-clave`; después de elegir una contraseña nueva accedés a la **Agenda de Recepción** (`/`).
 3. **Lo que podés hacer**:
    - Dar de alta turnos normales y sobreturnos justificados.
    - Registrar la asistencia del día: **Presente**, **Ausente** o **No asistió (No-show)**.
@@ -83,7 +83,7 @@ Navegá en tu navegador a:
 
 ### C. Ingresando como Odontólogo (`odontologo@example.com`)
 1. Ingresá `odontologo@example.com` y la contraseña `cambiar-esta-clave-provisoria`.
-2. Accederás a la **Agenda Filtrada** (`/`).
+2. En el primer ingreso el sistema te redirige a `/cambiar-clave`; después de elegir una contraseña nueva accedés a la **Agenda Filtrada** (`/`).
 3. **Lo que podés hacer**:
    - Este usuario está vinculado automáticamente en la base de datos al *Profesional Ficticio de Ejemplo*.
    - **Aislamiento en DB**: La base de datos solo le devuelve sus propios turnos. No puede ver la agenda de otros profesionales de la clínica.

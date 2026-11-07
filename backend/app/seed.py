@@ -154,7 +154,10 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
 async def _seed_demo_staff(
     session: AsyncSession, clinic_id: object, professional_id: object | None, config: SeedConfig
 ) -> None:
-    """Siembra usuarios de prueba para recepción y odontólogo (solo datos sintéticos)."""
+    """Siembra usuarios de prueba para recepción y odontólogo (solo datos sintéticos).
+
+    Como el admin, nacen con una clave provisoria y deben cambiarla en el primer ingreso.
+    """
     recepcion_pwd = config.recepcion_password or config.admin_password
     odontologo_pwd = config.odontologo_password or config.admin_password
 
@@ -165,7 +168,7 @@ async def _seed_demo_staff(
             email=config.recepcion_email.strip().lower(),
             password_hash=hash_password(recepcion_pwd),
             role=UserRole.RECEPCION,
-            must_change_password=False,
+            must_change_password=True,
         )
         .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
     )
@@ -178,7 +181,7 @@ async def _seed_demo_staff(
                 password_hash=hash_password(odontologo_pwd),
                 role=UserRole.ODONTOLOGO,
                 professional_id=professional_id,
-                must_change_password=False,
+                must_change_password=True,
             )
             .on_conflict_do_nothing(index_elements=["clinic_id", "email"])
         )

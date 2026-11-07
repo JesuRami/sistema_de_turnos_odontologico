@@ -1,0 +1,23 @@
+{
+  "skill_name": "auditoria-escenarios-turnos",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Auditá los escenarios del change c-11-timeline-recordatorios. Quiero saber si faltan casos borde y si los THEN se pueden verificar.",
+      "expected_output": "Informe con tabla de hallazgos por severidad, cobertura por requisito y preguntas abiertas; cita archivo:línea y reglas de la KB.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Revisá la spec de reenvío manual de recordatorios: no me queda claro qué pasa si dos recepcionistas hacen clic al mismo tiempo ni qué pasa con el job que ya fue enviado.",
+      "expected_output": "Detecta la ausencia de concurrencia/idempotencia, propone el parche con estado observable y cita RN-WA-04/RN-GL-01.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Antes de correr /opsx:apply del change de recordatorios, decime si las tasks prueban de verdad cada escenario o si falta verificación.",
+      "expected_output": "Audita tasks.md, marca las tasks sin verificación y exige RED/GREEN, capa de test y datos sintéticos.",
+      "files": []
+    }
+  ]
+}

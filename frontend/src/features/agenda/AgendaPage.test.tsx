@@ -6,6 +6,8 @@ import {
   appointment,
   block,
   chair,
+  followUpPage,
+  followUpRow,
   professional
 } from "../../test/fixtures";
 import { loggedSession, makeUser, renderWithProviders } from "../../test/render";
@@ -254,6 +256,110 @@ describe("AgendaPage", () => {
       await vi.advanceTimersByTimeAsync(65_000);
 
       expect(red.pedidos()).toBe(1);
+    });
+  });
+
+  describe("panel de seguimiento (C-11)", () => {
+    const pendiente = appointment({ id: "appt-pend", status: "pending" });
+    const otro = appointment({
+      id: "appt-ok",
+      starts_at: "2030-01-07T14:00:00Z",
+      ends_at: "2030-01-07T14:30:00Z",
+      patient: { id: "pat-2", full_name: "Bruno Ficticio" }
+    });
+
+    it("recepción ve los contadores y el filtro deja solo esos turnos", async () => {
+      server.use(
+        ...agendaHandlers({
+          appointments: [pendiente, otro],
+          followUp: followUpPage([
+            followUpRow({ appointment_id: "appt-pend" }),
+            followUpRow({ appointment_id: "appt-x2" }),
+            followUpRow({ appointment_id: "appt-x3" }),
+            followUpRow({ appointment_id: "appt-x4", reasons: ["delivery_failed"] })
+          ])
+        })
+      );
+      const { user } = await abrir();
+
+      const panel = await screen.findByRole("region", { name: "Seguimiento de recordatorios" });
+      expect(await within(panel).findByText("3 sin confirmar")).toBeInTheDocument();
+      expect(within(panel).getByText("1 con fallo de envío")).toBeInTheDocument();
+      await screen.findByRole("button", { name: /Bruno Ficticio/ });
+
+      await user.click(within(panel).getByRole("button", { name: "Solo para llamar" }));
+
+      expect(screen.getByRole("button", { name: /Ana Prueba Ejemplo/ })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Bruno Ficticio/ })).not.toBeInTheDocument();
+    });
+
+    it("sin turnos para llamar muestra 0 y el filtro no cambia la grilla", async () => {
+      server.use(...agendaHandlers({ appointments: [otro] }));
+      const { user } = await abrir();
+
+      const panel = await screen.findByRole("region", { name: "Seguimiento de recordatorios" });
+      expect(await within(panel).findByText("0 sin confirmar")).toBeInTheDocument();
+      await user.click(within(panel).getByRole("button", { name: "Solo para llamar" }));
+
+      expect(await screen.findByRole("button", { name: /Bruno Ficticio/ })).toBeInTheDocument();
+    });
+
+    it("pide el seguimiento del rango visible", async () => {
+      let consulta = "";
+      server.use(
+        http.get("/api/reminders/follow-up", ({ request }) => {
+          consulta = decodeURIComponent(new URL(request.url).search);
+          return HttpResponse.json(followUpPage());
+        }),
+        ...agendaHandlers()
+      );
+      await abrir();
+
+      await waitFor(() => expect(consulta).toContain("from=2030-01-07T03:00:00.000Z"));
+      expect(consulta).toContain("to=2030-01-08T03:00:00.000Z");
+    });
+
+    it("el odontólogo no ve el panel ni pide el seguimiento", async () => {
+      let pedidos = 0;
+      server.use(
+        http.get("/api/reminders/follow-up", () => {
+          pedidos += 1;
+          return HttpResponse.json(followUpPage());
+        }),
+        ...agendaHandlers({ appointments: [otro] })
+      );
+      await abrir("odontologo");
+
+      await screen.findByRole("button", { name: /Bruno Ficticio/ });
+      expect(
+        screen.queryByRole("region", { name: "Seguimiento de recordatorios" })
+      ).not.toBeInTheDocument();
+      expect(pedidos).toBe(0);
+    });
+
+    it("el refresco periódico actualiza el panel", async () => {
+      let pedidos = 0;
+      server.use(
+        http.get("/api/reminders/follow-up", () => {
+          pedidos += 1;
+          return HttpResponse.json(
+            followUpPage(pedidos === 1 ? [] : [followUpRow({ appointment_id: "appt-pend" })])
+          );
+        }),
+        ...agendaHandlers({ appointments: [pendiente] })
+      );
+      const sesion = await loggedSession(makeUser("recepcion"));
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        renderWithProviders(<AgendaPage />, { session: sesion, now: () => AHORA });
+        expect(await screen.findByText("0 sin confirmar")).toBeInTheDocument();
+
+        await vi.advanceTimersByTimeAsync(31_000);
+
+        expect(await screen.findByText("1 sin confirmar")).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

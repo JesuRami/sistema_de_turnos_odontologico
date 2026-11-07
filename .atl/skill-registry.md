@@ -5,6 +5,8 @@
 See `_shared/skill-resolver.md` for the full resolution protocol.
 
 > Rebuilt: skills moved from GLOBAL to PROJECT-LOCAL scope. The 12 coding skills below resolve to `.agents/skills/` in this repo; foundation/orchestrator skills remain global under `C:\Users\DWIOL-11-001816\.config\opencode\skills\`.
+>
+> The 12 coding skills are pinned in `skills-lock.json` (installed from registers). The project-owned `auditoria-escenarios-turnos` skill lives in the same folder but is versioned directly in the repo and intentionally absent from `skills-lock.json`.
 
 ## Project Skills (local — `.agents/skills/`)
 
@@ -22,6 +24,7 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 | Building REST APIs with FastAPI, async Python backends, SQLAlchemy/Pydantic integration, API auth, microservices | python-fastapi-development | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\python-fastapi-development\SKILL.md |
 | Query tuning, indexing strategies, execution plan analysis, pagination, batch ops, performance monitoring (any SQL DB) | sql-optimization | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\sql-optimization\SKILL.md |
 | Multi-container apps, dev environments with DB/cache, frontend+backend+DB orchestration, service dependencies, networking, volumes, production deployment | docker-compose-orchestration | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\docker-compose-orchestration\SKILL.md |
+| Preparing or reviewing an OpenSpec change (proposal/design/specs/tasks); "auditar escenarios", "casos borde", "reglas ambiguas", "validar specs", "faltan escenarios"; before /opsx:apply (project-owned skill) | auditoria-escenarios-turnos | C:\Users\DWIOL-11-001816\Downloads\bd\sistema_de_turnos_odontologico\.agents\skills\auditoria-escenarios-turnos\SKILL.md |
 
 ## Foundation Skills (global — orchestrator/SDD flow, intentionally NOT local)
 
@@ -145,6 +148,14 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Volumes: named volumes for pgdata/redis-data; bind-mount source only in dev for hot reload; :ro for configs; never commit .env (use env_file + secrets for JWT_SECRET/DB_PASSWORD)
 - Config: base compose.yaml + compose.override.yaml (dev) + compose.prod.yaml (replicas, resource limits, log rotation, secrets); validate with docker compose config
 - Lifecycle: up -d --build for deploy; logs -f <svc>, exec <svc> sh for debug; down -v also removes volumes (data loss)
+
+### auditoria-escenarios-turnos
+- Audit BEFORE implementing: inventory every delta-spec requirement + scenario as funcionamiento / error de negocio / borde, with `archivo:línea` and the RN/US/CA that backs it
+- Map each requirement against the KB (05 reglas, 06 funcionalidades, 07 flujos, 10 preguntas abiertas, 11 WhatsApp); flag RN huérfana, decision without justification, contradiction with KB/AGENTS.md/base spec
+- Reject non-observable THENs ("funciona bien", "queda consistente", "no se duplica" without a countable fact); require HTTP status + error code, row/state, event presence, idempotency, or a concrete instant/timezone
+- Walk the domain axes: concurrencia (doble clic/tick/webhook), idempotencia, clinic_id isolation, RBAC (admin/recepción/odontólogo-only/paciente token), audit event in-transaction + append-only + no PII, clinic timezone and window edges, state machine transitions
+- Each scenario needs a task stating HOW it is verified (RED test first, minimal GREEN, real Postgres for invariants, synthetic data); "implement X" without verification is a finding
+- Output only the severity table (BLOQUEANTE/MAYOR/MENOR) + coverage matrix + open questions; never edit the artifacts, never invent domain rules — mark `(TBD)` and ask
 
 ### active-orchestrator
 - Thin orchestrator only: owns `.active-orchestrator-state.json` and the `step` field; never change step/owner except through its own flow

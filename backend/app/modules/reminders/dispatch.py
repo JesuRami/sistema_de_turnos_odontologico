@@ -114,6 +114,8 @@ class Ready:
     email_blocked: bool
     # `phone_number_id` emisor de WhatsApp: el propio de la clínica o el compartido (C-10).
     sender_id: str | None = None
+    # El envío proviene de un reenvío manual de recepción (C-11): el evento `sent` lo marca.
+    manual: bool = False
 
     def __repr__(self) -> str:
         return f"Ready(job={self.job_id}, channel={self.channel.value}, step={self.step})"
@@ -157,6 +159,7 @@ async def _recover_leases(
                 status=ReminderStatus.FAILED,
                 reason=ReminderReason.LEASE_EXPIRED.value,
                 claimed_at=None,
+                manual_resend_at=None,
             )
             .returning(ReminderJob.id, ReminderJob.clinic_id)
             .execution_options(synchronize_session=False)
@@ -270,6 +273,7 @@ def _close(
 ) -> None:
     job.status = to
     job.reason = reason.value
+    job.manual_resend_at = None
     add_event(session, job.id, job.clinic_id, event, {"reason": reason.value})
 
 
@@ -440,6 +444,7 @@ async def _claim_batch(
                         patient_email=email,
                         email_blocked=email_blocked,
                         sender_id=ctx.clinic_whatsapp_number or compartido,
+                        manual=job.manual_resend_at is not None,
                     )
                 )
         await session.flush()
@@ -535,7 +540,7 @@ async def _recheck(factory: SessionFactory, ready: Ready, now: datetime) -> bool
                 ReminderJob.clinic_id == ready.clinic_id,
                 ReminderJob.status == ReminderStatus.SENDING,
             )
-            .values(status=estado, reason=motivo.value)
+            .values(status=estado, reason=motivo.value, manual_resend_at=None)
             .execution_options(synchronize_session=False)
         )
         if cerrado.rowcount:  # type: ignore[attr-defined]
@@ -565,6 +570,7 @@ async def _record_success(
                 cost_micros=_cost(settings, ready.channel),
                 last_error=None,
                 reason=None,
+                manual_resend_at=None,
             )
             .execution_options(synchronize_session=False)
         )
@@ -582,6 +588,7 @@ async def _record_success(
                     "attempt": ready.attempts,
                     "kind": "template",
                     "cost_micros": _cost(settings, ready.channel),
+                    **({"manual": True} if ready.manual else {}),
                 },
             )
         )
@@ -630,6 +637,7 @@ async def _record_failure(
             return
         add_event(session, job.id, job.clinic_id, DeliveryEventType.ATTEMPT_FAILED, detalle)
         job.status = ReminderStatus.FAILED
+        job.manual_resend_at = None
         job.reason = (
             ReminderReason.SEND_FAILED
             if retryable or code in _CONFIG_CODES

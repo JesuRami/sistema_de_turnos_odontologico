@@ -1,7 +1,8 @@
 /**
  * Detalle de un turno con sus acciones (US-012/US-013): confirmar, reprogramar,
  * cancelar con motivo y asistencia. Los botones salen de `allowedActions`; si la
- * API igual rechaza, se muestra su motivo y el turno queda como estaba.
+ * API igual rechaza, se muestra su motivo y el turno queda como estaba. Debajo de
+ * las acciones, el timeline de recordatorios (C-11, US-032).
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -20,6 +21,7 @@ import { Alert, Button, Modal, SelectField, TextArea } from "../../shared/ui";
 import { allowedActions } from "./allowedActions";
 import type { AgendaContext } from "./context";
 import { CANCELLATION_REASON_LABEL, STATUS_LABEL, STATUS_STYLE } from "./labels";
+import ReminderTimeline from "./ReminderTimeline";
 
 const MOTIVOS = Object.keys(CANCELLATION_REASON_LABEL) as CancellationReason[];
 
@@ -71,6 +73,8 @@ function AppointmentDetail({
         body
       });
       await queryClient.invalidateQueries({ queryKey: queryKeys.appointments });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.reminders });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.followUp });
       onDone(EXITO[body.to]);
     } catch (e) {
       setError(messageFor(e));
@@ -180,6 +184,12 @@ function AppointmentDetail({
           </div>
         </div>
       )}
+
+      <ReminderTimeline
+        appointmentId={appointment.id}
+        tz={tz}
+        canAct={context.role === "admin" || context.role === "recepcion"}
+      />
 
       {cancelando && (
         <fieldset className="mt-4 space-y-2 rounded border border-rose-200 p-3">

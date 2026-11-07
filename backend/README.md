@@ -625,6 +625,103 @@ Antes del piloto: validar un payload real del número de prueba de Meta contra
 nuevas `whatsapp_inbound` (append-only) y `whatsapp_outbound_reply` y tres enums. Downgrade:
 `alembic downgrade c09_reminder_engine` (los `consent` de fuente `whatsapp_reply` quedan).
 
+## Timeline y reenvío manual de recordatorios (C-11)
+
+Operación diaria de recepción sobre los recordatorios (US-032). Detalle completo:
+`openspec/changes/c-11-timeline-recordatorios/design.md`.
+
+### Timeline por turno
+
+`GET /api/appointments/{id}/reminders` (admin, recepción y odontólogo; el odontólogo solo ve sus
+turnos, un turno ajeno o de otra clínica es `404 not_found`). Devuelve un elemento por paso y
+canal, en el orden alta → 72 h → 24 h → 3 h, con WhatsApp antes que email.
+
+- **Estado efectivo** (`status`): se deriva de los eventos, no solo del estado mutable del job.
+  Dentro del intento vigente, respecto del último `sent`: `read` > `delivered` > `failed`; sin
+  envío, el estado del job (`scheduled`, `sending`, `sent`, `skipped`, `cancelled`). Meta puede
+  informar `delivered` y `failed` del mismo mensaje (gana `delivered`) o `read` sin `delivered`
+  (es `read`). Como Meta informa con segundos enteros, el `sent` se compara truncado al segundo.
+- **Intento vigente**: lo posterior al último reenvío manual. Los eventos anteriores, y los propios
+  `manual_resend`, vienen con `previous: true` ("envío anterior") y no cambian el estado vigente.
+- `scheduled` no es un evento: aparece como primer hito solo si el job está `scheduled`/`sending`.
+- `detail` expone solo `attempt`, `kind`, `reason`, `cost_micros`, `to` y `manual` (el `sent` de un
+  reenvío lleva `manual: true`); el `manual_resend` lleva `actor_role`. Nunca
+  `provider_message_id`, links, nombre, teléfono, email ni la nota del reenvío.
+- `can_resend` / `resend_blocked_reason` los calcula el servidor con las mismas guardas del
+  reenvío; para el odontólogo `can_resend` es siempre `false`.
+
+### Reenvío manual
+
+`POST /api/appointments/{id}/reminders/{step}/{channel}/resend` (admin y recepción; odontólogo
+`403 forbidden_role`), cuerpo opcional `{"note": "…"}` (≤ 200, sin teléfono, email ni DNI: si no,
+`422 invalid_note` sin repetir el valor). Guardas, en este orden, dentro de una transacción con
+`FOR UPDATE` del turno y del job:
+
+| # | Condición | Respuesta |
+|---|-----------|-----------|
+| 1 | Turno `pending` o `confirmed` | `409 appointment_inactive` |
+| 2 | El turno no empezó | `409 appointment_started` |
+| 3 | Existe el job `(turno, paso, canal)` | `404 reminder_not_found` |
+| 4–6 | Paso configurado (o alta), job no `cancelled`, y no es un paso de confirmación de un turno online ya confirmado | `409 step_not_applicable` |
+| 7 | WhatsApp: opt-in y teléfono; email: dirección y sin baja | `409 no_consent` / `409 no_recipient` |
+| 8 | Cooldown (`REMINDER_MANUAL_RESEND_COOLDOWN_S`, default 60) o reenvío ya en cola; tope por job y día local (`REMINDER_MANUAL_RESEND_MAX_PER_DAY`, default 3) | `409 resend_cooldown` + `retry_after_s` / `409 resend_limit` |
+| 9 | El job no está `sending` ni es un paso futuro todavía no intentado | `409 reminder_in_flight` / `409 reminder_pending` |
+
+Un `202` inserta la fila de auditoría (`reminder_manual_resend`, append-only, con actor y nota) y
+resetea el job a `scheduled` con `available_at = now`, `attempts = 0` y sin `sent_at`,
+`provider_message_id`, `cost_micros`, `last_error` ni `reason`; conserva `scheduled_for` y
+`starts_at_snapshot` y marca `manual_resend_at`. **La request no envía**: el worker lo despacha en
+su próximo tick (con el worker detenido, el job queda `scheduled`). Un reenvío no adelanta un paso
+futuro: solo se reenvía lo ya intentado. Dos pedidos simultáneos se serializan en el lock del
+turno: uno `202`, el otro `409 resend_cooldown`, una sola fila de auditoría.
+
+- **Recálculo**: `reconcile` no cancela por paso vencido un job con `manual_resend_at` mientras el
+  turno conserve su horario. Si se reprograma, el paso se recalcula para el nuevo horario (y pierde
+  la marca) o queda `cancelled (step_elapsed)`; si el turno se cancela o se quita el paso, se
+  cancela. La marca se limpia cuando el job sale de `scheduled`.
+- **Estados tardíos del mensaje anterior**: el reset limpia `provider_message_id`, así que un
+  `delivered`/`read`/`failed` del mensaje viejo no encuentra job y se ignora; el `sent` anterior
+  queda en el timeline como envío anterior.
+
+La confirmación manual usa la transición existente: `POST /api/appointments/{id}/transitions` con
+`{"to": "confirmed"}` (admin/recepción; escribe `appointment_event` con el actor).
+
+### Seguimiento del día
+
+`GET /api/reminders/follow-up?from=&to=[&cursor=&limit=]` (admin y recepción; rango ≤ 31 días,
+`422 range_too_large` / `422 invalid_range`): turnos vigentes y futuros con `starts_at` en
+`[from, to)` que requieren llamada, por `starts_at` con cursor, más `totals`.
+
+- `no_response`: turno `pending` con un `sent` del paso de 24 h (o, si la clínica no lo configura,
+  de cualquier paso que pide confirmación) cuyo job no quedó `failed`.
+- `delivery_failed`: algún job `failed` programado antes del inicio. Desaparece cuando el
+  reenvío se envía bien.
+
+La fila trae el nombre del paciente y el último recordatorio, sin teléfono, email ni ids del
+proveedor. En la agenda, admin y recepción ven el panel con los dos contadores y el filtro
+«Solo para llamar».
+
+### Reporte
+
+`GET /api/reports/whatsapp` cuenta **enviados por evento** `sent` (incluye los reenvíos) y suma el
+costo de cada uno; entregados y leídos cuentan una vez por job; fallidos, solo si el último intento
+falló (una falla vieja ya reenviada no cuenta).
+
+### Probar con el sender `fake`
+
+Con `REMINDER_WHATSAPP_PROVIDER=fake`: dejar un job `failed`, reenviarlo desde el detalle del
+turno («Reenviar»), esperar el próximo tick del worker y ver en el timeline el segundo `sent` con
+el «Reenviado por recepción» previo. El test `tests/modules/test_reminder_timeline_e2e.py` recorre
+el circuito completo (envío → `delivered`/`read` por webhook firmado → reenvío → reporte).
+
+### Revisión `c11_reminder_timeline` (C-11)
+
+`reminder_job.manual_resend_at` (nullable, metadata-only), tabla nueva `reminder_manual_resend`
+(append-only, FKs compuestas a turno, job y usuario, CHECK de largo de la nota) con dos índices, e
+índice parcial `ix_reminder_job_failed` creado `CONCURRENTLY`. Downgrade:
+`alembic downgrade c10_whatsapp_channel` (se pierde el histórico de reenvíos; los jobs quedan como
+estaban).
+
 ## Seed del tenant inicial
 
 Crea una clínica, un admin con cambio de contraseña obligatorio, el sillón

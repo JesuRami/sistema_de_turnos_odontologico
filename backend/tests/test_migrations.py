@@ -23,6 +23,7 @@ TABLAS = {
     "consent",
     "whatsapp_inbound",
     "whatsapp_outbound_reply",
+    "reminder_manual_resend",
 }
 INDICES = {
     "uq_clinic_slug",
@@ -57,6 +58,9 @@ INDICES = {
     "ix_delivery_event_reminder_job_id_occurred_at",
     "uq_delivery_event_job_provider_event",
     "ix_consent_patient_channel_changed",
+    "ix_reminder_job_failed",
+    "ix_reminder_manual_resend_job",
+    "ix_reminder_manual_resend_appointment",
 }
 ENUMS = {
     "user_role",
@@ -693,5 +697,79 @@ def test_ciclo_de_c10_con_datos_de_c09(temp_database: str) -> None:
         == []
     )
     assert fetch_rows("SELECT count(*) FROM patient", temp_database) == [(1,)]
+
+    command.upgrade(cfg, "head")
+
+
+def test_ciclo_de_c11_con_datos_de_c10(temp_database: str) -> None:
+    """Con datos sintéticos de C-10, `upgrade` → `downgrade c10` → `upgrade` funciona (C-11, 1.3).
+
+    Regla 11: el índice parcial de fallidos `CONCURRENTLY` queda válido; el downgrade quita la
+    tabla de auditoría, su trigger, la columna `manual_resend_at` y el índice, y conserva los jobs.
+    """
+    cfg = alembic_config()
+    command.upgrade(cfg, "c10_whatsapp_channel")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia', 'clinica-c11-ciclo')", ()),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164, whatsapp_opt_in) "
+            "SELECT id, 'Paciente Ficticio', '+5491155550111', true FROM clinic",
+            (),
+        ),
+        (
+            "INSERT INTO professional (clinic_id, display_name) "
+            "SELECT id, 'Profesional Ficticio' FROM clinic",
+            (),
+        ),
+        ("INSERT INTO chair (clinic_id, name) SELECT id, 'Sillón Ficticio' FROM clinic", ()),
+        (
+            "INSERT INTO appointment (clinic_id, patient_id, professional_id, chair_id, "
+            "starts_at, ends_at, occupied_until, status, origin, manage_token_hash) "
+            "SELECT c.id, p.id, pr.id, ch.id, '2030-01-14 13:00+00', '2030-01-14 13:30+00', "
+            "'2030-01-14 13:30+00', 'pending', 'online', decode(repeat('ab', 32), 'hex') "
+            "FROM clinic c JOIN patient p ON p.clinic_id = c.id "
+            "JOIN professional pr ON pr.clinic_id = c.id JOIN chair ch ON ch.clinic_id = c.id",
+            (),
+        ),
+        (
+            "INSERT INTO reminder_job (clinic_id, appointment_id, step, channel, scheduled_for, "
+            "available_at, starts_at_snapshot, status) "
+            "SELECT clinic_id, id, 't_24h', 'whatsapp', starts_at - interval '24 hours', "
+            "starts_at - interval '24 hours', starts_at, 'failed' FROM appointment",
+            (),
+        ),
+    )
+
+    command.upgrade(cfg, "head")
+    assert "reminder_manual_resend" in _tablas(temp_database)
+    assert fetch_rows(
+        "SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid "
+        "WHERE c.relname = 'ix_reminder_job_failed'",
+        temp_database,
+    ) == [(True,)]
+    assert fetch_rows(
+        "SELECT count(*) FROM reminder_job WHERE manual_resend_at IS NULL", temp_database
+    ) == [(1,)]
+
+    command.downgrade(cfg, "c10_whatsapp_channel")
+    assert "reminder_manual_resend" not in _tablas(temp_database)
+    assert "ix_reminder_job_failed" not in _indices(temp_database)
+    assert (
+        fetch_rows(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'reminder_job' AND column_name = 'manual_resend_at'",
+            temp_database,
+        )
+        == []
+    )
+    assert (
+        fetch_rows(
+            "SELECT 1 FROM pg_proc WHERE proname = 'reminder_manual_resend_immutable'",
+            temp_database,
+        )
+        == []
+    )
+    assert fetch_rows("SELECT count(*) FROM reminder_job", temp_database) == [(1,)]
 
     command.upgrade(cfg, "head")

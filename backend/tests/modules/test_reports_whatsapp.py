@@ -293,3 +293,100 @@ async def test_csv_con_las_mismas_cifras_y_sin_pii(
     assert lineas[-1] == "total,,1,1,0,0,0.012500"
     assert NOMBRE.split()[0] not in respuesta.text
     assert job.provider_message_id is not None and job.provider_message_id not in respuesta.text
+
+
+# ------------------------------------------------------------ reenvío manual (C-11, D9)
+
+
+async def _reenvio(
+    db: AsyncSession, job: ReminderJob, momento: datetime, *, cost: int | None = 12500
+) -> None:
+    """Segundo `sent` del mismo job, como lo registra el worker tras un reenvío manual."""
+    payload: dict[str, Any] = {"attempt": 1, "kind": "template", "manual": True}
+    if cost is not None:
+        payload["cost_micros"] = cost
+    db.add(
+        DeliveryEvent(
+            clinic_id=job.clinic_id,
+            reminder_job_id=job.id,
+            event_type=DeliveryEventType.SENT,
+            payload=payload,
+            occurred_at=momento,
+        )
+    )
+    await db.flush()
+
+
+async def _evento(
+    db: AsyncSession, job: ReminderJob, tipo: DeliveryEventType, momento: datetime
+) -> None:
+    db.add(
+        DeliveryEvent(
+            clinic_id=job.clinic_id,
+            reminder_job_id=job.id,
+            event_type=tipo,
+            payload={"source": "meta"},
+            occurred_at=momento,
+        )
+    )
+    await db.flush()
+
+
+async def test_reenvio_manual_entregado_cuenta_dos_envios_y_ningun_fallido(
+    app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
+) -> None:
+    staff, s = await _escena(db_session, redis_client, settings)
+    job = await s.enviado("t_24h", BASE, then=(DeliveryEventType.FAILED,))
+    await _reenvio(db_session, job, BASE + timedelta(hours=1))
+    await _evento(
+        db_session, job, DeliveryEventType.DELIVERED, BASE + timedelta(hours=1, minutes=1)
+    )
+
+    cuerpo = (await app_client.get(URL, params=ENERO, headers=staff.headers["admin"])).json()
+
+    fila = _fila(cuerpo, "t_24h")
+    assert (fila["sent"], fila["delivered"], fila["read"], fila["failed"]) == (2, 1, 0, 0)
+    assert fila["cost_usd"] == "0.025000"
+    assert cuerpo["totals"]["sent"] == 2
+
+
+async def test_reenvio_manual_sin_entrega_no_cuenta_el_fallo_anterior(
+    app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
+) -> None:
+    staff, s = await _escena(db_session, redis_client, settings)
+    job = await s.enviado("t_24h", BASE, then=(DeliveryEventType.FAILED,))
+    await _reenvio(db_session, job, BASE + timedelta(hours=1))
+
+    fila = _fila(
+        (await app_client.get(URL, params=ENERO, headers=staff.headers["admin"])).json(), "t_24h"
+    )
+
+    assert (fila["sent"], fila["delivered"], fila["read"], fila["failed"]) == (2, 0, 0, 0)
+
+
+async def test_reenvio_reencolado_sin_enviar_no_suma_envios_ni_costo(
+    app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
+) -> None:
+    staff, s = await _escena(db_session, redis_client, settings)
+    await s.enviado("t_24h", BASE, then=(DeliveryEventType.FAILED,))
+
+    fila = _fila(
+        (await app_client.get(URL, params=ENERO, headers=staff.headers["admin"])).json(), "t_24h"
+    )
+
+    assert (fila["sent"], fila["failed"], fila["cost_usd"]) == (1, 1, "0.012500")
+
+
+async def test_fallo_de_meta_del_mismo_segundo_que_el_envio_cuenta(
+    app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
+) -> None:
+    # Meta informa en segundos: un `failed` del mismo segundo que el último `sent` cuenta.
+    staff, s = await _escena(db_session, redis_client, settings)
+    job = await s.enviado("t_3h", BASE + timedelta(milliseconds=700))
+    await _evento(db_session, job, DeliveryEventType.FAILED, BASE)
+
+    fila = _fila(
+        (await app_client.get(URL, params=ENERO, headers=staff.headers["admin"])).json(), "t_3h"
+    )
+
+    assert fila["failed"] == 1

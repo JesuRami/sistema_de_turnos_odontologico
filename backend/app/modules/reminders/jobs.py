@@ -71,7 +71,8 @@ async def close_scheduled(
     filas = await session.execute(
         update(ReminderJob)
         .where(ReminderJob.status == ReminderStatus.SCHEDULED, *conditions)
-        .values(status=to, reason=reason.value)
+        # El marcador de reenvío manual solo protege a un job `scheduled` (C-11, D5).
+        .values(status=to, reason=reason.value, manual_resend_at=None)
         .returning(ReminderJob.id, ReminderJob.clinic_id)
         .execution_options(synchronize_session=False)
     )

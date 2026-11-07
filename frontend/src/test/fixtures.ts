@@ -6,7 +6,11 @@ import type {
   Chair,
   ClinicPolicies,
   ClinicProfile,
+  FollowUpPage,
+  FollowUpRow,
   Professional,
+  ReminderTimelineStep,
+  ReminderTimeline,
   ScheduleRule
 } from "../shared/api/types";
 
@@ -110,6 +114,7 @@ export interface AgendaData {
   appointments?: Appointment[];
   blocks?: Block[];
   policies?: ClinicPolicies;
+  followUp?: FollowUpPage;
 }
 
 const page = <T,>(items: T[]) => HttpResponse.json({ items, next_cursor: null });
@@ -123,6 +128,62 @@ export function agendaHandlers(data: AgendaData = {}): HttpHandler[] {
     http.get("/api/schedules", () => page(data.schedules ?? [rule()])),
     http.get("/api/appointments", () => page(data.appointments ?? [])),
     http.get("/api/blocks", () => page(data.blocks ?? [])),
-    http.get("/api/clinic/policies", () => HttpResponse.json(data.policies ?? POLICIES))
+    http.get("/api/clinic/policies", () => HttpResponse.json(data.policies ?? POLICIES)),
+    http.get("/api/reminders/follow-up", () => HttpResponse.json(data.followUp ?? followUpPage()))
   ];
+}
+
+// --- Recordatorios (C-11) ---
+
+export function reminderStep(overrides: Partial<ReminderTimelineStep> = {}): ReminderTimelineStep {
+  return {
+    step: "t_24h",
+    channel: "whatsapp",
+    status: "delivered",
+    reason: null,
+    scheduled_for: "2030-01-06T13:00:00Z",
+    available_at: "2030-01-06T13:00:00Z",
+    sent_at: "2030-01-06T13:00:05Z",
+    attempts: 1,
+    last_error: null,
+    manual_resends_today: 0,
+    last_manual_resend_at: null,
+    can_resend: true,
+    resend_blocked_reason: null,
+    events: [
+      { type: "sent", occurred_at: "2030-01-06T13:00:05Z", previous: false, detail: { attempt: 1 } },
+      { type: "delivered", occurred_at: "2030-01-06T13:01:00Z", previous: false, detail: {} }
+    ],
+    ...overrides
+  };
+}
+
+export function timeline(steps: ReminderTimelineStep[] = [reminderStep()], overrides: Partial<ReminderTimeline> = {}): ReminderTimeline {
+  return { appointment_id: "appt-1", timezone: TZ, pending_confirmation: false, steps, ...overrides };
+}
+
+export function followUpRow(overrides: Partial<FollowUpRow> = {}): FollowUpRow {
+  return {
+    appointment_id: "appt-1",
+    starts_at: "2030-01-07T13:00:00Z",
+    patient_id: "pat-1",
+    patient_name: "Ana Prueba Ejemplo",
+    professional_id: "prof-1",
+    status: "pending",
+    reasons: ["no_response"],
+    last_reminder: null,
+    can_confirm: true,
+    ...overrides
+  };
+}
+
+export function followUpPage(items: FollowUpRow[] = []): FollowUpPage {
+  return {
+    items,
+    next_cursor: null,
+    totals: {
+      no_response: items.filter((i) => i.reasons.includes("no_response")).length,
+      delivery_failed: items.filter((i) => i.reasons.includes("delivery_failed")).length
+    }
+  };
 }

@@ -322,3 +322,91 @@ export interface AuditEvent {
   payload: Record<string, unknown>;
   created_at: IsoDateTime;
 }
+
+// --- Recordatorios: timeline, reenvío y seguimiento (C-11) ---
+
+/** Estado efectivo de un paso (D2): el del job o el derivado de sus eventos. */
+export type ReminderStepStatus =
+  | "scheduled"
+  | "sending"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed"
+  | "skipped"
+  | "cancelled";
+
+export type ResendBlockedReason =
+  | "no_consent"
+  | "no_recipient"
+  | "appointment_started"
+  | "appointment_inactive"
+  | "step_not_applicable"
+  | "reminder_in_flight"
+  | "reminder_pending"
+  | "resend_cooldown"
+  | "resend_limit";
+
+export interface ReminderEvent {
+  type: string;
+  occurred_at: IsoDateTime;
+  /** Evento de un intento anterior a un reenvío manual ("envío anterior"). */
+  previous: boolean;
+  detail: Record<string, string | number | boolean | null>;
+}
+
+export interface ReminderTimelineStep {
+  step: string;
+  channel: ReminderChannel;
+  status: ReminderStepStatus;
+  reason: string | null;
+  scheduled_for: IsoDateTime;
+  available_at: IsoDateTime;
+  sent_at: IsoDateTime | null;
+  attempts: number;
+  last_error: string | null;
+  manual_resends_today: number;
+  last_manual_resend_at: IsoDateTime | null;
+  can_resend: boolean;
+  resend_blocked_reason: ResendBlockedReason | null;
+  events: ReminderEvent[];
+}
+
+export interface ReminderTimeline {
+  appointment_id: Uuid;
+  timezone: string;
+  pending_confirmation: boolean;
+  steps: ReminderTimelineStep[];
+}
+
+export interface ResendAccepted {
+  job_id: Uuid;
+  status: "scheduled";
+  available_at: IsoDateTime;
+  manual_resends_today: number;
+  cooldown_until: IsoDateTime;
+}
+
+export type FollowUpReason = "no_response" | "delivery_failed";
+
+export interface FollowUpRow {
+  appointment_id: Uuid;
+  starts_at: IsoDateTime;
+  patient_id: Uuid;
+  patient_name: string;
+  professional_id: Uuid;
+  status: AppointmentStatus;
+  reasons: FollowUpReason[];
+  last_reminder: {
+    step: string;
+    channel: ReminderChannel;
+    status: string;
+    sent_at: IsoDateTime | null;
+    last_error: string | null;
+  } | null;
+  can_confirm: boolean;
+}
+
+export interface FollowUpPage extends Page<FollowUpRow> {
+  totals: Record<FollowUpReason, number>;
+}

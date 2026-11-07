@@ -59,11 +59,33 @@ La fuente de verdad del dominio vive en `knowledge-base/`. **Leé el archivo rel
 | **Backend Aux** | Auth / servicios / integraciones / infra | `auth-implementation-patterns`, `jwt-security-review`, `docker-compose-orchestration`, `code-review` |
 | **Frontend** | React / TS / Tailwind / agenda SPA | `vercel-react-best-practices`, `frontend-design`, `web-design-guidelines` |
 | **Orquestación** | OPSX / SDD / docs | Resolver en runtime |
+| **Calidad de specs** | Auditoría de escenarios antes de aplicar | `auditoria-escenarios-turnos` |
 
 Cargá la skill correspondiente al contexto ANTES de escribir código.
 
 > Las 12 skills de código están instaladas project-local en `.agents/skills/` (fijadas con `skills-lock.json`, viajan con el repo); las skills de fundación/orquestación permanecen globales.
+> La skill propia `auditoria-escenarios-turnos` vive en `.agents/skills/auditoria-escenarios-turnos/` y no está en `skills-lock.json` porque no se instala desde un registro: se versiona en el repo.
 > Los compact rules se resuelven en runtime desde `.atl/skill-registry.md` (generado por `skill-registry`, versionado en el repo). Esta tabla solo mapea skill→rol.
+
+### Skill propia: `auditoria-escenarios-turnos`
+
+**Cuándo usarla**: al preparar o revisar `proposal.md`, `design.md`, `specs/**` o `tasks.md` de un change; cuando se pidan "casos borde", "reglas ambiguas" o "revisar specs"; y antes de `/opsx:apply`.
+
+**Qué necesita**: el change completo, la KB aplicable (`05`, `06`, `07`, `10` y `11` si toca WhatsApp), `AGENTS.md`/`CLAUDE.md`, las specs principales de `openspec/specs/**` y el código que el change reutiliza.
+
+**Qué devuelve**: tabla de hallazgos por severidad (`BLOQUEANTE`/`MAYOR`/`MENOR`) con `archivo:línea`, regla o fuente, qué falta y parche propuesto; cobertura por requisito (funcionamiento/error de negocio/borde/verificable); preguntas abiertas. **No edita** los artefactos.
+
+**Cómo revisar el resultado**: todo requisito debe tener escenario de funcionamiento; todo invariante crítico, al menos un error de negocio y un borde; ningún `THEN` puede ser no verificable; ninguna RN aplicable puede quedar huérfana; cada escenario debe tener una task que explique cómo se prueba. Si la skill inventa una regla que no está en la KB, es un defecto: se marca `(TBD)` y se pregunta.
+
+## MCP Integrado
+
+| Servidor | Propósito | Herramientas | Documentación |
+|---|---|---|---|
+| **Context7** | Documentación oficial y actualizada de librerías/APIs (WhatsApp Cloud API, FastAPI, PostgreSQL, SQLAlchemy) | `resolve-library-id`, `query-docs` | [`docs/skills-mcp/mcp-context7.md`](docs/skills-mcp/mcp-context7.md) |
+
+**Cuándo usarlo**: al fijar un contrato externo en una spec o al dudar de una firma, un estado del proveedor o una API. **Cuándo no**: para reglas de negocio del dominio; esas salen de `knowledge-base/`.
+
+**Límites**: solo lectura de documentación pública; no se envían datos del proyecto, del paciente ni del repo. No es una skill y no se registra en `.atl/skill-registry.md`. Si Context7 contradice `AGENTS.md` o la KB, prevalecen `AGENTS.md` y la KB. Configuración reproducible en [`opencode.json`](opencode.json) y [`docs/skills-mcp/mcp-context7.md`](docs/skills-mcp/mcp-context7.md).
 
 ---
 

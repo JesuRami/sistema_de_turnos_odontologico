@@ -81,6 +81,11 @@ def _configured(steps: list[dict[str, Any]]) -> dict[Key, int]:
     return configurados
 
 
+def configured_step_names(steps: list[dict[str, Any]]) -> set[str]:
+    """Pasos configurados en `clinic.reminder_steps` (cualquier canal), sin el alta."""
+    return {paso for paso, _canal in _configured(steps)}
+
+
 def _wanted(
     appointment: Appointment, configured: dict[Key, int], now: datetime
 ) -> dict[Key, datetime]:
@@ -113,6 +118,7 @@ async def _load(
                 ReminderJob.status,
                 ReminderJob.scheduled_for,
                 ReminderJob.starts_at_snapshot,
+                ReminderJob.manual_resend_at,
             ).where(
                 ReminderJob.clinic_id == appointment.clinic_id,
                 ReminderJob.appointment_id == appointment.id,
@@ -152,6 +158,9 @@ async def reconcile(session: AsyncSession, appointment: Appointment, *, now: dat
             a_cancelar.setdefault(ReminderReason.STEP_REMOVED, []).append(fila.id)
         elif _confirmed_online(appointment) and requests_confirmation(paso):
             a_cancelar.setdefault(ReminderReason.CONFIRMED, []).append(fila.id)
+        elif _manual_resend_pending(appointment, fila, now):
+            # Reenvío manual en cola (C-11, D5): su hora original ya pasó a propósito.
+            continue
         else:
             a_cancelar.setdefault(ReminderReason.STEP_ELAPSED, []).append(fila.id)
 
@@ -169,6 +178,19 @@ async def reconcile(session: AsyncSession, appointment: Appointment, *, now: dat
         if (paso, canal) not in existentes
     ]
     await _insert(session, nuevos)
+
+
+def _manual_resend_pending(appointment: Appointment, fila: Any, now: datetime) -> bool:
+    """Un reenvío manual sobre el mismo horario y con el turno por delante no se cancela.
+
+    Si el turno se movió (`starts_at_snapshot` distinto), el paso se recalcula o vence como
+    cualquier otro: la marca no lo protege.
+    """
+    return (
+        fila.manual_resend_at is not None
+        and fila.starts_at_snapshot == appointment.starts_at
+        and appointment.starts_at > now
+    )
 
 
 async def schedule_new(session: AsyncSession, appointment: Appointment, *, now: datetime) -> None:
@@ -209,7 +231,11 @@ async def _insert(session: AsyncSession, filas: list[dict[str, Any]]) -> None:
 async def _refresh(
     session: AsyncSession, appointment: Appointment, fila: Any, cuando: datetime
 ) -> None:
-    """Actualiza hora y snapshot de un job `scheduled` solo si cambiaron."""
+    """Actualiza hora y snapshot de un job `scheduled` solo si cambiaron.
+
+    Un recálculo de horario descarta la marca de reenvío manual (C-11, D5): el paso vuelve a la
+    secuencia automática del nuevo horario.
+    """
     if fila.scheduled_for == cuando and fila.starts_at_snapshot == appointment.starts_at:
         return
     await session.execute(
@@ -223,6 +249,7 @@ async def _refresh(
             scheduled_for=cuando,
             available_at=cuando,
             starts_at_snapshot=appointment.starts_at,
+            manual_resend_at=None,
         )
         .execution_options(synchronize_session=False)
     )

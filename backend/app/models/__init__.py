@@ -37,6 +37,7 @@ from app.models.patient import Patient
 from app.models.patient_merge import PatientMerge
 from app.models.professional import Professional
 from app.models.reminder_job import ReminderJob
+from app.models.reminder_manual_resend import ReminderManualResend
 from app.models.schedule_rule import ScheduleRule
 from app.models.user import User
 from app.models.whatsapp_inbound import WhatsAppInbound
@@ -72,6 +73,7 @@ __all__ = [
     "Professional",
     "ReminderChannel",
     "ReminderJob",
+    "ReminderManualResend",
     "ReminderReason",
     "ReminderStatus",
     "ScheduleRule",

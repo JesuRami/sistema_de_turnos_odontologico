@@ -1,8 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Appointment, UserRole } from "../../shared/api/types";
-import { appointment, chair, professional, rule, TZ } from "../../test/fixtures";
+import { appointment, chair, professional, reminderStep, rule, timeline, TZ } from "../../test/fixtures";
 import { loggedSession, makeUser, renderWithProviders } from "../../test/render";
 import { server } from "../../test/server";
 import AppointmentDetail from "./AppointmentDetail";
@@ -37,7 +37,14 @@ function capturarTransicion() {
   return cuerpos;
 }
 
+const TIMELINE = "/api/appointments/appt-1/reminders";
+const REENVIO = "/api/appointments/appt-1/reminders/t_24h/whatsapp/resend";
+
 describe("AppointmentDetail", () => {
+  beforeEach(() => {
+    server.use(http.get(TIMELINE, () => HttpResponse.json(timeline([]))));
+  });
+
   it("muestra el turno en la hora de la clínica con su contacto", async () => {
     await abrir(appointment({ notes: "Trae estudios ficticios" }));
     expect(screen.getByText("lun 07/01 10:00–10:30")).toBeInTheDocument();
@@ -124,5 +131,115 @@ describe("AppointmentDetail", () => {
     const { user, onReschedule } = await abrir(turno);
     await user.click(screen.getByRole("button", { name: "Reprogramar" }));
     expect(onReschedule).toHaveBeenCalledWith(turno);
+  });
+
+  describe("recordatorios (C-11)", () => {
+    function fallido() {
+      let lecturas = 0;
+      server.use(
+        http.get(TIMELINE, () => {
+          lecturas += 1;
+          return HttpResponse.json(
+            timeline([
+              lecturas === 1
+                ? reminderStep({ status: "failed", last_error: "meta_131026" })
+                : reminderStep({
+                    status: "scheduled",
+                    can_resend: false,
+                    resend_blocked_reason: "resend_cooldown"
+                  })
+            ])
+          );
+        })
+      );
+      return { lecturas: () => lecturas };
+    }
+
+    it("el detalle incluye el timeline", async () => {
+      server.use(http.get(TIMELINE, () => HttpResponse.json(timeline())));
+      await abrir(appointment());
+
+      expect(await screen.findByRole("region", { name: "Recordatorios" })).toBeInTheDocument();
+      expect(await screen.findByText("Entregado")).toBeInTheDocument();
+    });
+
+    it("recepción reenvía: 202 muestra Reenvío en cola y refresca", async () => {
+      const red = fallido();
+      server.use(
+        http.post(REENVIO, () =>
+          HttpResponse.json(
+            {
+              job_id: "job-1",
+              status: "scheduled",
+              available_at: "2030-01-07T11:00:00Z",
+              manual_resends_today: 1,
+              cooldown_until: "2030-01-07T11:01:00Z"
+            },
+            { status: 202 }
+          )
+        )
+      );
+      const { user } = await abrir(appointment());
+
+      await user.click(await screen.findByRole("button", { name: "Reenviar 24 h antes · WhatsApp" }));
+
+      expect(await screen.findByText("Reenvío en cola")).toBeInTheDocument();
+      await waitFor(() => expect(red.lecturas()).toBe(2));
+      expect(await screen.findByText("Programado", { selector: "span" })).toBeInTheDocument();
+    });
+
+    it("409 resend_cooldown muestra los segundos que faltan", async () => {
+      fallido();
+      server.use(
+        http.post(REENVIO, () =>
+          HttpResponse.json({ detail: "resend_cooldown", retry_after_s: 42 }, { status: 409 })
+        )
+      );
+      const { user } = await abrir(appointment());
+
+      await user.click(await screen.findByRole("button", { name: "Reenviar 24 h antes · WhatsApp" }));
+
+      expect(await screen.findByText(/Esperá 42 s antes de volver a reenviar/)).toBeInTheDocument();
+    });
+
+    it("doble clic manda un solo pedido", async () => {
+      fallido();
+      let pedidos = 0;
+      server.use(
+        http.post(REENVIO, async () => {
+          pedidos += 1;
+          await new Promise((r) => setTimeout(r, 50));
+          return HttpResponse.json({ detail: "resend_cooldown", retry_after_s: 60 }, { status: 409 });
+        })
+      );
+      const { user } = await abrir(appointment());
+      const boton = await screen.findByRole("button", { name: "Reenviar 24 h antes · WhatsApp" });
+
+      await user.dblClick(boton);
+
+      await screen.findByText(/Esperá 60 s/);
+      expect(pedidos).toBe(1);
+    });
+
+    it("el odontólogo ve el timeline sin Reenviar ni Confirmar", async () => {
+      server.use(
+        http.get(TIMELINE, () => HttpResponse.json(timeline([reminderStep({ can_resend: false })])))
+      );
+      await abrir(appointment({ status: "pending" }), { rol: "odontologo" });
+
+      await screen.findByText("Entregado");
+      expect(screen.queryByRole("button", { name: /Reenviar/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
+    });
+
+    it("si el timeline falla, el resto del turno sigue visible", async () => {
+      server.use(http.get(TIMELINE, () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
+      await abrir(appointment());
+
+      expect(
+        await screen.findByText(/No se pudo cargar el historial de recordatorios/)
+      ).toBeInTheDocument();
+      expect(screen.getByText("lun 07/01 10:00–10:30")).toBeInTheDocument();
+    });
   });
 });

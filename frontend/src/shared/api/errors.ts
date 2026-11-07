@@ -53,7 +53,19 @@ const MENSAJES: Record<string, string> = {
   invalid_email: "El email no es válido",
   contact_required: "Cargá al menos un teléfono o un email",
   patient_duplicate: "Ya existe un paciente con ese nombre y teléfono",
-  invalid_merge: "No se pueden fusionar esas fichas"
+  invalid_merge: "No se pueden fusionar esas fichas",
+  // recordatorios (C-11)
+  appointment_inactive: "El turno ya no está vigente",
+  reminder_not_found: "Ese recordatorio no existe para este turno",
+  step_not_applicable: "Ese recordatorio ya no aplica a este turno",
+  reminder_in_flight: "El recordatorio se está enviando en este momento",
+  reminder_pending: "El recordatorio todavía no se envió: sale a su hora",
+  no_consent: "El paciente no aceptó recibir mensajes por ese canal",
+  no_recipient: "Falta el teléfono o el email del paciente para ese canal",
+  resend_cooldown: "Hay un reenvío en cola. Esperá un momento",
+  resend_limit: "Se alcanzó el máximo de reenvíos de hoy para este recordatorio",
+  invalid_note: "La nota no puede tener teléfonos, emails ni DNI (máx. 200 caracteres)",
+  range_too_large: "El rango no puede superar los 31 días"
 };
 
 export function messageFor(error: unknown): string {

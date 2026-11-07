@@ -1,9 +1,13 @@
 """Reporte de mensajes de recordatorio y su costo por paso (C-10, D10; RN-WA-05).
 
 - **Cohorte**: los jobs de la clínica con un evento `sent` cuyo instante cae en el rango local
-  `[from 00:00, to+1 00:00)` de la clínica. Cada job cuenta una vez.
-- Por job: entregado si tiene `delivered` o `read`; leído si tiene `read`; fallido si Meta informó
-  `failed` después del envío. El paso y el canal se leen del job (no cambian desde que se crea).
+  `[from 00:00, to+1 00:00)` de la clínica.
+- **Enviados por evento** (C-11, D9): cada `sent` del rango cuenta, incluidos los reenvíos
+  manuales del mismo job.
+- **Por job** (una vez, aunque se haya reenviado): entregado si tiene `delivered` o `read`; leído si
+  tiene `read`; fallido solo si el último intento falló: un `failed` posterior al último `sent`
+  (truncado al segundo, porque Meta informa con segundos enteros). Una falla vieja ya reenviada no
+  cuenta. El paso y el canal se leen del job (no cambian desde que se crea).
 - **Costo sobre eventos** (regla 8): la suma de `payload.cost_micros` de los eventos `sent` del
   rango. No se lee el estado mutable del job.
 - Filas: `created` + los pasos configurados de la clínica (y cualquier otro paso con envíos), por
@@ -55,7 +59,8 @@ async def whatsapp_report(
     cohorte = (
         select(
             enviado.reminder_job_id.label("job_id"),
-            func.min(enviado.occurred_at).label("sent_at"),
+            func.count().label("sends"),
+            func.date_trunc("second", func.max(enviado.occurred_at)).label("last_sent"),
             func.coalesce(
                 func.sum(cast(enviado.payload["cost_micros"].astext, BigInteger)), 0
             ).label("cost"),
@@ -73,6 +78,7 @@ async def whatsapp_report(
     por_job = (
         select(
             cohorte.c.job_id,
+            cohorte.c.sends,
             cohorte.c.cost,
             func.coalesce(
                 func.bool_or(
@@ -87,7 +93,7 @@ async def whatsapp_report(
                 func.bool_or(
                     and_(
                         otro.c.event_type == DeliveryEventType.FAILED,
-                        otro.c.occurred_at >= cohorte.c.sent_at,
+                        otro.c.occurred_at >= cohorte.c.last_sent,
                     )
                 ),
                 False,
@@ -98,7 +104,7 @@ async def whatsapp_report(
             otro,
             and_(otro.c.clinic_id == clinic_id, otro.c.reminder_job_id == cohorte.c.job_id),
         )
-        .group_by(cohorte.c.job_id, cohorte.c.cost)
+        .group_by(cohorte.c.job_id, cohorte.c.sends, cohorte.c.cost, cohorte.c.last_sent)
         .cte("por_job")
     )
     filas = (
@@ -106,7 +112,7 @@ async def whatsapp_report(
             select(
                 ReminderJob.step,
                 ReminderJob.channel,
-                func.count().label("sent"),
+                func.coalesce(func.sum(por_job.c.sends), 0).label("sent"),
                 func.count().filter(por_job.c.delivered).label("delivered"),
                 func.count().filter(por_job.c.read).label("read"),
                 func.count().filter(por_job.c.failed).label("failed"),
@@ -131,7 +137,7 @@ async def whatsapp_report(
                 WhatsAppReportRow(
                     step=paso,
                     channel=canal,
-                    sent=f.sent if f else 0,
+                    sent=int(f.sent) if f else 0,
                     delivered=f.delivered if f else 0,
                     read=f.read if f else 0,
                     failed=f.failed if f else 0,

@@ -2,6 +2,7 @@
  * Agenda del personal (US-010, Flujo 4): vista día por sillón y semana por día,
  * en la zona horaria de la clínica, con filtros y distintivos. La API es la
  * autoridad: esta pantalla solo muestra y ofrece lo que el rol puede pedir.
+ * Admin y recepción ven además el panel de seguimiento de recordatorios (C-11).
  */
 import { useMemo, useState } from "react";
 import type { Appointment, AppointmentStatus, Block } from "../../shared/api/types";
@@ -10,6 +11,7 @@ import {
   useBlocks,
   useChairs,
   useClinic,
+  useFollowUp,
   useProfessionals,
   useSchedules
 } from "../../shared/api/queries";
@@ -65,6 +67,7 @@ function AgendaPage(): JSX.Element {
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [formSeed, setFormSeed] = useState<FormSeed | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [soloLlamar, setSoloLlamar] = useState(false);
 
   const hoy = tz !== null ? dateKeyOf(clock(), tz) : null;
   const dia = anchor ?? hoy;
@@ -87,6 +90,12 @@ function AgendaPage(): JSX.Element {
   const blocks = useBlocks(range);
   const role = user?.role ?? "odontologo";
   const deMostrador = role === "admin" || role === "recepcion";
+  const seguimiento = useFollowUp(range, deMostrador);
+  // Sin turnos para llamar el filtro no vacía la grilla (spec web/agenda-board).
+  const paraLlamar = useMemo(() => {
+    const ids = (seguimiento.data?.items ?? []).map((i) => i.appointment_id);
+    return soloLlamar && ids.length > 0 ? new Set(ids) : null;
+  }, [seguimiento.data, soloLlamar]);
 
   const profesionales = useMemo(() => professionals.data ?? [], [professionals.data]);
   const sillonesActivos = useMemo(() => (chairs.data ?? []).filter((c) => c.active), [chairs.data]);
@@ -112,7 +121,8 @@ function AgendaPage(): JSX.Element {
       (a) =>
         (profFilter === "" || a.professional_id === profFilter) &&
         (chairFilter === "" || a.chair_id === chairFilter) &&
-        (statusFilter === "" ? a.status !== "cancelled" : a.status === statusFilter)
+        (statusFilter === "" ? a.status !== "cancelled" : a.status === statusFilter) &&
+        (paraLlamar === null || paraLlamar.has(a.id))
     );
     const items: GridItem[] = filtrados.map((a) => ({
       id: a.id,
@@ -135,7 +145,7 @@ function AgendaPage(): JSX.Element {
             }
           ];
     });
-  }, [appointments.data, profFilter, chairFilter, statusFilter, view, visible, tz, porProfesional, clock]);
+  }, [appointments.data, profFilter, chairFilter, statusFilter, paraLlamar, view, visible, tz, porProfesional, clock]);
 
   const gridBlocks = useMemo<GridBlock[]>(() => {
     if (tz === null) {
@@ -247,6 +257,30 @@ function AgendaPage(): JSX.Element {
           </SelectField>
         </div>
       </div>
+
+      {deMostrador && (
+        <section
+          aria-label="Seguimiento de recordatorios"
+          className="mb-3 flex flex-wrap items-center gap-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+        >
+          {seguimiento.isError ? (
+            <span>No se pudo cargar el seguimiento de recordatorios.</span>
+          ) : (
+            <>
+              <span>{`${seguimiento.data?.totals.no_response ?? 0} sin confirmar`}</span>
+              <span>{`${seguimiento.data?.totals.delivery_failed ?? 0} con fallo de envío`}</span>
+            </>
+          )}
+          <Button
+            variant={soloLlamar ? "primary" : "secondary"}
+            className="ml-auto"
+            aria-pressed={soloLlamar}
+            onClick={() => setSoloLlamar((v) => !v)}
+          >
+            Solo para llamar
+          </Button>
+        </section>
+      )}
 
       {aviso !== null && (
         <div className="mb-3">

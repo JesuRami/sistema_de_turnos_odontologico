@@ -10,8 +10,10 @@ import type {
   Chair,
   ClinicPolicies,
   ClinicProfile,
+  FollowUpPage,
   Page,
   Professional,
+  ReminderTimeline,
   ScheduleRule
 } from "./types";
 
@@ -22,7 +24,9 @@ export const queryKeys = {
   schedules: ["schedules"] as const,
   policies: ["policies"] as const,
   appointments: ["appointments"] as const,
-  blocks: ["blocks"] as const
+  blocks: ["blocks"] as const,
+  reminders: ["reminders"] as const,
+  followUp: ["follow-up"] as const
 };
 
 /** Todas las páginas de un listado por cursor. */
@@ -106,5 +110,47 @@ export function useBlocks(range: { from: Date; to: Date } | null): UseQueryResul
         200
       ),
     enabled: range !== null
+  });
+}
+
+/** Timeline de recordatorios de un turno (C-11, D3). */
+export function useReminderTimeline(appointmentId: string): UseQueryResult<ReminderTimeline> {
+  return useQuery({
+    queryKey: [...queryKeys.reminders, appointmentId],
+    queryFn: () => apiFetch<ReminderTimeline>(`/api/appointments/${appointmentId}/reminders`)
+  });
+}
+
+/**
+ * Seguimiento del rango visible (C-11, D8): todas las páginas, con los totales de la primera.
+ * Se refresca con el mismo intervalo que la agenda; solo lo pide admin/recepción.
+ */
+export function useFollowUp(
+  range: { from: Date; to: Date } | null,
+  enabled: boolean
+): UseQueryResult<FollowUpPage> {
+  return useQuery({
+    queryKey: [...queryKeys.followUp, range?.from.toISOString(), range?.to.toISOString()],
+    queryFn: async () => {
+      let cursor: string | null = null;
+      let primera: FollowUpPage | null = null;
+      const items: FollowUpPage["items"] = [];
+      do {
+        const pagina: FollowUpPage = await apiFetch<FollowUpPage>("/api/reminders/follow-up", {
+          query: {
+            from: range?.from.toISOString(),
+            to: range?.to.toISOString(),
+            limit: 200,
+            cursor: cursor ?? undefined
+          }
+        });
+        primera = primera ?? pagina;
+        items.push(...pagina.items);
+        cursor = pagina.next_cursor;
+      } while (cursor !== null);
+      return { items, next_cursor: null, totals: primera.totals };
+    },
+    enabled: enabled && range !== null,
+    refetchInterval: AGENDA_REFETCH_MS
   });
 }

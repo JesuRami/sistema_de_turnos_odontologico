@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     # Costo estimado por mensaje en USD × 10⁻⁶ (RN-WA-05); 0 hasta tener precios.
     REMINDER_COST_WHATSAPP_MICROS: int = Field(default=0, ge=0)
     REMINDER_COST_EMAIL_MICROS: int = Field(default=0, ge=0)
+    # Reenvío manual desde recepción (C-11, D6): espera mínima entre reenvíos del mismo job y
+    # tope de reenvíos por job y día local de la clínica (anti doble clic y anti spam).
+    REMINDER_MANUAL_RESEND_COOLDOWN_S: int = Field(default=60, ge=0)
+    REMINDER_MANUAL_RESEND_MAX_PER_DAY: int = Field(default=3, ge=1)
     # Firma de los links de gestión de los mensajes (D9). Vacío solo se admite en `dev`
     # (los links firmados quedan deshabilitados); nunca se imprime.
     MANAGE_LINK_SECRET: SecretStr = SecretStr("")

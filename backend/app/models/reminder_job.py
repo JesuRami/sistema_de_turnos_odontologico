@@ -71,6 +71,13 @@ class ReminderJob(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ),
         # Agregado de costo y envíos por clínica y paso (RN-WA-05).
         Index("ix_reminder_job_clinic_step_sent", "clinic_id", "step", "sent_at"),
+        # Lista de seguimiento: fallos de entrega por clínica (C-11, D8).
+        Index(
+            "ix_reminder_job_failed",
+            "clinic_id",
+            "scheduled_for",
+            postgresql_where=text("status = 'failed'"),
+        ),
         # Búsqueda del webhook por el id de Meta (C-10, D1/D6); los ids del proveedor son únicos.
         Index(
             "uq_reminder_job_provider_message_id",
@@ -97,3 +104,8 @@ class ReminderJob(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     provider_message_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     cost_micros: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Último reenvío manual pendiente (C-11, D5): el recálculo no lo cancela por paso vencido.
+    # Se limpia cuando el job sale de `scheduled`.
+    manual_resend_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

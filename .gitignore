@@ -9,6 +9,8 @@ uv.lock
 .env
 .env.*
 !.env.example
+# Salidas de comandos locales (no se versionan)
+*.log
 # Pytest / coverage / mypy / ruff
 .pytest_cache/
 .coverage

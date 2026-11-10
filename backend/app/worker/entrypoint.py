@@ -11,8 +11,13 @@ recordatorios (`app.worker.settings`). Si falta una dependencia aborta nombrando
 import asyncio
 import logging
 import os
+from typing import Literal
 
 logger = logging.getLogger("worker")
+
+
+def _log_format() -> Literal["json", "text"]:
+    return "text" if os.environ.get("LOG_FORMAT", "json") == "text" else "json"
 
 
 async def check_redis(redis_url: str) -> bool:
@@ -41,7 +46,10 @@ async def check_postgres(database_url: str) -> bool:
 
 async def main() -> None:
     """Arranca el worker: verifica dependencias y corre el cron del motor de recordatorios."""
-    logging.basicConfig(level=logging.INFO)
+    from app.core.logs import configure_logging
+
+    # C-14 (D2): mismos logs JSON redactados que la API (sin PII ni tokens).
+    configure_logging(os.environ.get("LOG_LEVEL", "INFO"), _log_format())
     redis_url = os.environ.get("REDIS_URL", "")
     database_url = os.environ.get("DATABASE_URL", "")
     if not redis_url or not database_url:

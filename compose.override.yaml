@@ -3,14 +3,14 @@ services:
   migrate:
     # Dev: migra y siembra la clínica demo (idempotente por slug; con reserva pública
     # habilitada solo al crearla). Monta `backend/` para aplicar migraciones nuevas sin rebuild.
-    command: ["sh", "-c", "alembic upgrade head && python -m app.seed"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.ops.db_roles && python -m app.seed"]
     environment:
       SEED_BOOKING_DEMO: "true"
       SEED_DEMO_USERS: "true"
     volumes:
       - ./backend:/srv/app/backend:ro
   api:
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--no-access-log"]
     volumes:
       - ./backend:/srv/app/backend:ro
   worker:

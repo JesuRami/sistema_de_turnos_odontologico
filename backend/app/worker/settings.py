@@ -33,7 +33,7 @@ _TICK_TIMEOUT_MARGIN_S = 60
 async def on_startup(ctx: dict[str, Any]) -> None:
     """Arma engine, sessionmaker, senders y reloj del proceso."""
     settings = get_settings()
-    engine = create_engine(settings.DATABASE_URL)
+    engine = create_engine(settings.DATABASE_URL, settings, application_name="turnos-worker")
     senders = build_senders(settings)
     ctx.update(
         settings=settings,

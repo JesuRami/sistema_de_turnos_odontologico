@@ -1,22 +1,28 @@
-"""Entrypoint FastAPI (C-01 foundation).
+"""Entrypoint FastAPI (C-01 foundation; borde endurecido en C-14).
 
-CORS restrictivo + rate-limit global + salud observable (`/health`, `/ready`)
-+ routers por dominio (stubs hasta su change).
+Stack de middlewares (de afuera hacia adentro, C-14 D1): contexto del request (request-id, log de
+acceso sin PII, 500 uniforme) → headers seguros → hosts confiables → CORS restrictivo →
+rate-limit global (Redis compartido, degradación a memoria). Salud observable (`/health`,
+`/ready`) y routers por dominio.
 """
 
 import re
-import time
-from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.common.exceptions import register_exception_handlers
 from app.core.database import async_database_url, create_engine, create_sessionmaker
+from app.core.logs import configure_logging
+from app.core.middleware import (
+    GlobalRateLimitMiddleware,
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+    TrustedHostMiddleware,
+)
 from app.core.redis import create_redis_client
 from app.core.settings import Settings, get_settings
 from app.modules.agenda.router import router as agenda_router
@@ -37,6 +43,11 @@ from app.modules.waiting_list.router import router as waiting_list_router
 _RATE_RE = re.compile(r"^\s*(\d+)\s*/\s*(second|minute|hour)\s*$")
 _WINDOW = {"second": 1.0, "minute": 60.0, "hour": 3600.0}
 
+# C-14 (D1): headers que el navegador puede mandar a la API. Nada de `*`: con credenciales
+# (cookie de refresh) un comodín es justamente lo que CORS intenta evitar.
+CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "Accept", "X-Request-ID"]
+CORS_EXPOSE_HEADERS = ["X-Request-ID", "Retry-After", "Content-Disposition"]
+
 
 def parse_rate_limit(spec: str) -> tuple[int, float]:
     """Parsea `BOOKING_RATE_LIMIT` (`"<n>/<second|minute|hour>"`)."""
@@ -46,40 +57,15 @@ def parse_rate_limit(spec: str) -> tuple[int, float]:
     return int(match.group(1)), _WINDOW[match.group(2)]
 
 
-class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
-    """Rate-limit global en memoria (ventana fija por IP).
-
-    Suficiente para C-01; en C-07 el booking usa límites estrictos en Redis.
-    """
-
-    def __init__(self, app: FastAPI, max_requests: int, window_s: float) -> None:
-        super().__init__(app)
-        self.max_requests = max_requests
-        self.window_s = window_s
-        self._hits: dict[str, list[float]] = defaultdict(list)
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # El webhook de Meta se autentica por firma; un 429 provocaría reintentos en ráfaga.
-        if request.url.path in ("/health", "/ready", WEBHOOK_PATH):
-            return await call_next(request)
-        now = time.monotonic()
-        key = request.client.host if request.client else "unknown"
-        window_start = now - self.window_s
-        hits = [t for t in self._hits[key] if t > window_start]
-        if len(hits) >= self.max_requests:
-            return JSONResponse(status_code=429, content={"detail": "rate limit exceeded"})
-        hits.append(now)
-        self._hits[key] = hits
-        return await call_next(request)
-
-
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Fábrica de la app (inyectable en tests)."""
     settings = settings or get_settings()
     max_requests, window_s = parse_rate_limit(settings.BOOKING_RATE_LIMIT)
 
-    engine = create_engine(str(settings.DATABASE_URL))
+    configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
+    engine = create_engine(str(settings.DATABASE_URL), settings, application_name="turnos-api")
     redis_client = create_redis_client(settings)
+    en_prod = settings.ENV == "prod"
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -94,17 +80,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="Sistema de Turnos Odontológico",
         version="0.1.0",
         lifespan=lifespan,
+        # C-14: en prod la API no publica su esquema ni la consola interactiva.
+        docs_url=None if en_prod else "/docs",
+        redoc_url=None if en_prod else "/redoc",
+        openapi_url=None if en_prod else "/openapi.json",
     )
 
-    origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    # `add_middleware` apila hacia afuera: el último agregado es el primero en ver el request.
+    app.add_middleware(
+        GlobalRateLimitMiddleware,
+        max_requests=max_requests,
+        window_s=window_s,
+        exempt_paths=(WEBHOOK_PATH,),
+        redis_getter=(None if settings.GLOBAL_RATE_LIMIT_BACKEND == "redis" else _no_redis),
+    )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["*"],
+        allow_headers=CORS_ALLOW_HEADERS,
+        expose_headers=CORS_EXPOSE_HEADERS,
+        max_age=600,
     )
-    app.add_middleware(GlobalRateLimitMiddleware, max_requests=max_requests, window_s=window_s)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts or ["*"])
+    app.add_middleware(SecurityHeadersMiddleware, hsts_seconds=settings.hsts_seconds)
+    app.add_middleware(RequestContextMiddleware, hsts_seconds=settings.hsts_seconds)
     register_exception_handlers(app)
 
     app.state.settings = settings
@@ -160,6 +161,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(router)
 
     return app
+
+
+def _no_redis(_: object) -> None:
+    """`GLOBAL_RATE_LIMIT_BACKEND=memory`: el middleware cuenta por proceso."""
+    return None
 
 
 app = create_app()

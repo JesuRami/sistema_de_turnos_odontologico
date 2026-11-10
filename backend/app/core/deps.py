@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 from typing import Annotated, cast
 
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.common.exceptions import DomainError
 from app.common.principal import Principal
 from app.core.jwt import TokenError, decode_access_token
+from app.core.logs import clinic_id_var
 from app.core.redis import get_redis
 from app.core.settings import Settings, get_settings
 from app.models import User
@@ -27,13 +29,27 @@ async def get_db(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
+# C-14 (D6): un JWT HS256 de este sistema mide ~400 bytes; el tope corta basura antes de
+# decodificar y el charset/estructura descartan lo que no puede ser un JWS compacto.
+_MAX_TOKEN_CHARS = 4096
+_JWT_SHAPE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+CHALLENGE = {"WWW-Authenticate": "Bearer"}
+
+
+def unauthorized(code: str) -> DomainError:
+    """`401` con el desafío `WWW-Authenticate: Bearer` (RFC 6750)."""
+    return DomainError(401, code, headers=dict(CHALLENGE))
+
+
 def _bearer_token(request: Request) -> str:
     """Extrae el token de `Authorization: Bearer`; sin credencial es `401` (nunca 403)."""
     header = request.headers.get("Authorization", "")
     scheme, _, value = header.partition(" ")
     token = value.strip()
     if scheme.lower() != "bearer" or not token:
-        raise DomainError(401, "token_invalid")
+        raise unauthorized("token_invalid")
+    if len(token) > _MAX_TOKEN_CHARS or not _JWT_SHAPE.match(token):
+        raise unauthorized("token_invalid")
     return token
 
 
@@ -54,15 +70,16 @@ async def get_current_principal(
     try:
         claims = decode_access_token(token, settings)
     except TokenError as exc:
-        raise DomainError(401, exc.code) from None
+        raise unauthorized(exc.code) from None
 
     try:
         alive = await session_alive(redis, claims.sid)
     except RedisError:
         raise DomainError(503, "auth_unavailable") from None
     if not alive:
-        raise DomainError(401, "invalid_session")
+        raise unauthorized("invalid_session")
 
+    clinic_id_var.set(str(claims.clinic_id))
     # Columnas explícitas (regla 8): el principal jamás arrastra el hash.
     stmt = select(
         User.id,
@@ -75,7 +92,7 @@ async def get_current_principal(
     ).where(User.id == claims.user_id, User.clinic_id == claims.clinic_id)
     row = (await session.execute(stmt)).one_or_none()
     if row is None or not bool(row.active):
-        raise DomainError(401, "invalid_session")
+        raise unauthorized("invalid_session")
 
     return Principal(
         user_id=row.id,

@@ -1,5 +1,11 @@
 # Producción: reinicio, límites y logs (single cloud deploy por tenant — fase 1).
+# C-14: la app y el worker corren con el usuario de `app_writer`; `migrate` con el dueño.
+# Backups cifrados con PITR: docs/piloto/backups-pitr.md (pgBackRest, fuera de este archivo).
 services:
+  migrate:
+    environment:
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD es obligatoria en prod}
+
   api:
     restart: always
     # nginx (frontend) es la única puerta: la API no se publica en el host, así que
@@ -9,6 +15,8 @@ services:
     ports: !reset []
     environment:
       FORWARDED_ALLOW_IPS: "*"
+      # C-14 (D7): en prod la clave del usuario de la app es obligatoria (sin default de ejemplo).
+      DATABASE_URL: postgresql+asyncpg://${APP_DB_USER:-turnos_app}:${APP_DB_PASSWORD:?APP_DB_PASSWORD es obligatoria en prod}@db:5432/turnos
     deploy:
       resources:
         limits:
@@ -22,6 +30,8 @@ services:
 
   worker:
     restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${APP_DB_USER:-turnos_app}:${APP_DB_PASSWORD:?APP_DB_PASSWORD es obligatoria en prod}@db:5432/turnos
     deploy:
       resources:
         limits:

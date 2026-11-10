@@ -14,7 +14,7 @@ import io
 import json
 import uuid
 from collections.abc import Iterable, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Any
 
 from fastapi import Response
@@ -32,7 +32,9 @@ def to_json_value(value: Any) -> Any:
     """Valor serializable a JSON (enums por valor, fechas ISO, UUID como texto)."""
     if isinstance(value, enum.Enum):
         return value.value
-    if isinstance(value, datetime | date):
+    # `time` (franja de la lista de espera, C-12) no es subclase de `date`: sin esta rama la
+    # exportación JSON fallaba con `TypeError` (hallado en C-14).
+    if isinstance(value, datetime | date | time):
         return value.isoformat()
     if isinstance(value, uuid.UUID):
         return str(value)

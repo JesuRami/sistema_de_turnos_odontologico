@@ -14,8 +14,10 @@ import type {
   CancellationsReport,
   OccupancyReport,
   Page,
+  PilotReport,
   ReportGroupBy,
   WaitlistReport,
+  WhatsAppBudget,
   WhatsAppReport
 } from "../../shared/api/types";
 
@@ -41,8 +43,33 @@ export const reportKeys = {
   cancellations: (r: DateRange) => ["reports", "cancellations", r] as const,
   whatsapp: (r: DateRange) => ["reports", "whatsapp", r] as const,
   waitlist: (r: DateRange) => ["reports", "waitlist", r] as const,
-  audit: (f: AuditFilters) => ["reports", "audit", f] as const
+  audit: (f: AuditFilters) => ["reports", "audit", f] as const,
+  pilot: (r: DateRange, baseline: number | null) => ["reports", "pilot", r, baseline] as const,
+  budget: ["reports", "whatsapp-budget"] as const
 };
+
+/** Métricas de éxito del piloto (C-14, D9). `baseline` = ausentismo previo de la clínica en %. */
+export function usePilotReport(range: DateRange | null, baseline: number | null): UseQueryResult<PilotReport> {
+  return useQuery({
+    queryKey: range === null ? ["reports", "pilot", "off"] : reportKeys.pilot(range, baseline),
+    queryFn: () =>
+      apiFetch<PilotReport>("/api/reports/pilot", {
+        query: { from: range?.from, to: range?.to, baseline_no_show_pct: baseline }
+      }),
+    enabled: range !== null
+  });
+}
+
+/** Costo de WhatsApp del mes contra el umbral (C-14, D8). Solo admin; se refresca cada 5 min. */
+export function useWhatsAppBudget(enabled: boolean): UseQueryResult<WhatsAppBudget> {
+  return useQuery({
+    queryKey: reportKeys.budget,
+    queryFn: () => apiFetch<WhatsAppBudget>("/api/reports/whatsapp/budget"),
+    enabled,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000
+  });
+}
 
 export function useOccupancy(range: DateRange | null, groupBy: ReportGroupBy): UseQueryResult<OccupancyReport> {
   return useQuery({

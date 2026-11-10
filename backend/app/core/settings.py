@@ -7,6 +7,7 @@ C-03 agrega la validación del secreto JWT (≥32 bytes, algoritmo pineado), los
 límites de rate-limit de auth y los flags de la cookie de refresh.
 """
 
+import re
 from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -17,6 +18,7 @@ from app.core.rate_limit import parse_window_spec
 _JWT_MIN_SECRET_BYTES = 32
 _JWT_MAX_ACCESS_MINUTES = 15
 _LINK_MIN_SECRET_BYTES = 32
+_APP_DB_USER_RE = re.compile(r"^[a-z_][a-z0-9_]{2,62}$")
 
 
 def parse_backoff_minutes(valor: str) -> tuple[int, ...]:
@@ -68,8 +70,12 @@ class Settings(BaseSettings):
     # Cookie de refresh: en prod se usa `__Host-` y `Domain` debe quedar vacío.
     COOKIE_DOMAIN: str = ""
 
-    # Reserva pública / tokens de gestión.
-    BOOKING_RATE_LIMIT: str = "30/minute"
+    # Rate-limit global por IP (C-01; recalibrado en C-14, Open Decision 1): una recepción
+    # detrás de una sola IP pública con varias pestañas de agenda supera 30/min. El nombre se
+    # conserva por compatibilidad; los cupos estrictos de reserva/gestión/oferta van en Redis.
+    BOOKING_RATE_LIMIT: str = "300/minute"
+    # `redis` comparte el contador entre procesos; `memory` es por proceso (tests, dev aislado).
+    GLOBAL_RATE_LIMIT_BACKEND: Literal["redis", "memory"] = "redis"
     MANAGE_TOKEN_TTL_H: int = Field(default=72, ge=1)
     # Gestión por token (C-08, D10): cupos estrictos por IP y por token (el hash es la clave).
     MANAGE_READ_IP_RATE_LIMIT: str = "120/60s"
@@ -99,6 +105,26 @@ class Settings(BaseSettings):
     # Clínica / zona horaria.
     CLINIC_TZ_DEFAULT: str = "America/Argentina/Buenos_Aires"
     ENV: str = "dev"
+
+    # Borde HTTP (C-14, D1). `ALLOWED_HOSTS`: lista separada por comas (`*.dominio` admite
+    # subdominios); `*` solo fuera de prod. HSTS solo se envía con ENV=prod.
+    ALLOWED_HOSTS: str = "*"
+    SECURITY_HSTS_SECONDS: int = Field(default=31_536_000, ge=0)
+    # Logs estructurados sin PII (C-14, D2).
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    LOG_FORMAT: Literal["json", "text"] = "json"
+    # Timeouts por conexión de la app y el worker (C-14, D4), en milisegundos; 0 = sin tope.
+    DB_STATEMENT_TIMEOUT_MS: int = Field(default=15_000, ge=0)
+    DB_LOCK_TIMEOUT_MS: int = Field(default=3_000, ge=0)
+    DB_IDLE_TX_TIMEOUT_MS: int = Field(default=60_000, ge=0)
+    # Separación migración/app (C-14, D7). `MIGRATION_DATABASE_URL` (dueño del schema) la lee
+    # `alembic/env.py`; vacía = `DATABASE_URL`. `APP_DB_*` los usa `python -m app.ops.db_roles`
+    # para crear el usuario de login miembro de `app_writer`.
+    MIGRATION_DATABASE_URL: SecretStr = SecretStr("")
+    APP_DB_USER: str = "turnos_app"
+    APP_DB_PASSWORD: SecretStr = SecretStr("")
+    # Webhook de Meta (C-14, D5): solo las firmas inválidas consumen cupo por IP.
+    WEBHOOK_INVALID_SIGNATURE_RATE_LIMIT: str = "20/60s"
 
     # WhatsApp Cloud API (C-10, D3). Con `REMINDER_WHATSAPP_PROVIDER=meta` son obligatorias
     # (token, secreto de app, número compartido por defecto y token de verificación del webhook).
@@ -170,6 +196,7 @@ class Settings(BaseSettings):
         "MANAGE_WRITE_TOKEN_RATE_LIMIT",
         "WAITLIST_PUBLIC_IP_RATE_LIMIT",
         "WAITLIST_PUBLIC_SLUG_RATE_LIMIT",
+        "WEBHOOK_INVALID_SIGNATURE_RATE_LIMIT",
     )
     @classmethod
     def _validar_rate_limit(cls, valor: str) -> str:
@@ -220,7 +247,35 @@ class Settings(BaseSettings):
             raise SettingsError(
                 "REMINDER_BACKOFF_MINUTES debe tener al menos REMINDER_MAX_ATTEMPTS - 1 tramos"
             )
+        if not _APP_DB_USER_RE.match(self.APP_DB_USER):
+            raise SettingsError("APP_DB_USER debe ser un identificador simple en minúsculas")
+        if self.ENV == "prod":
+            self._validar_borde_prod()
         return self
+
+    def _validar_borde_prod(self) -> None:
+        """C-14 (D1): en prod no hay comodines ni orígenes en claro."""
+        if not self.allowed_hosts or "*" in self.allowed_hosts:
+            raise SettingsError("ALLOWED_HOSTS es obligatorio en prod y no admite '*'")
+        if not self.cors_origins:
+            raise SettingsError("CORS_ORIGINS es obligatorio en prod")
+        if any(o == "*" or not o.startswith("https://") for o in self.cors_origins):
+            raise SettingsError("CORS_ORIGINS en prod solo admite orígenes https:// explícitos")
+        if not self.FRONTEND_PUBLIC_URL.startswith("https://"):
+            raise SettingsError("FRONTEND_PUBLIC_URL debe ser https:// en prod")
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        return [h.strip() for h in self.ALLOWED_HOSTS.split(",") if h.strip()]
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def hsts_seconds(self) -> int:
+        """HSTS solo detrás de TLS (prod); en dev un HSTS en localhost rompe otros proyectos."""
+        return self.SECURITY_HSTS_SECONDS if self.ENV == "prod" else 0
 
 
 def get_settings() -> Settings:

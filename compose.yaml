@@ -39,15 +39,20 @@ services:
   # api y worker (así un `up` nunca corre código nuevo sobre un schema viejo). Termina y sale:
   # un healthcheck no aplica a un proceso que no queda vivo; `api`/`worker` esperan su
   # `service_completed_successfully`. En dev, compose.override.yaml le suma el seed.
+  # C-14 (D7): migra con el dueño del schema y después crea/actualiza el usuario de la app
+  # (miembro de `app_writer`: sin DELETE y sin UPDATE en tablas append-only).
   migrate:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ["alembic", "upgrade", "head"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.ops.db_roles"]
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://turnos:${DB_PASSWORD:-changeme}@db:5432/turnos
+      MIGRATION_DATABASE_URL: postgresql+asyncpg://turnos:${DB_PASSWORD:-changeme}@db:5432/turnos
+      APP_DB_USER: ${APP_DB_USER:-turnos_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-changeme-app-password-solo-dev}
       REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
@@ -63,7 +68,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://turnos:${DB_PASSWORD:-changeme}@db:5432/turnos
+      DATABASE_URL: postgresql+asyncpg://${APP_DB_USER:-turnos_app}:${APP_DB_PASSWORD:-changeme-app-password-solo-dev}@db:5432/turnos
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
@@ -92,7 +97,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://turnos:${DB_PASSWORD:-changeme}@db:5432/turnos
+      DATABASE_URL: postgresql+asyncpg://${APP_DB_USER:-turnos_app}:${APP_DB_PASSWORD:-changeme-app-password-solo-dev}@db:5432/turnos
       REDIS_URL: redis://redis:6379/0
     depends_on:
       db:

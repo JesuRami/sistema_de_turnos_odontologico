@@ -68,7 +68,14 @@ def test_secreto_de_links_corto_falla_sin_imprimir_el_valor(entorno: str) -> Non
 
 
 def test_secreto_de_links_valido_se_acepta() -> None:
-    settings = _settings(ENV="prod", MANAGE_LINK_SECRET="l" * 32)
+    # C-14 (D1): prod además exige hosts y orígenes explícitos en https.
+    settings = _settings(
+        ENV="prod",
+        MANAGE_LINK_SECRET="l" * 32,
+        ALLOWED_HOSTS="turnos.example.com",
+        CORS_ORIGINS="https://turnos.example.com",
+        FRONTEND_PUBLIC_URL="https://turnos.example.com",
+    )
 
     assert settings.MANAGE_LINK_SECRET.get_secret_value() == "l" * 32
 

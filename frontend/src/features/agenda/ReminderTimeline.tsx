@@ -19,6 +19,7 @@ import type {
 } from "../../shared/api/types";
 import { dateKeyOf, formatDayLabel, formatTime } from "../../shared/time/zoned";
 import { Alert, Button } from "../../shared/ui";
+import { Skeleton } from "../../shared/ui/Skeleton";
 
 const CANAL: Record<ReminderChannel, string> = { whatsapp: "WhatsApp", email: "Email" };
 
@@ -197,7 +198,7 @@ function ReminderTimeline({
       {datos.isError && (
         <Alert>No se pudo cargar el historial de recordatorios. Reintentá en unos segundos.</Alert>
       )}
-      {datos.isPending && <p className="text-xs">Cargando recordatorios…</p>}
+      {datos.isPending && <Skeleton label="Cargando recordatorios…" rows={2} />}
       {datos.data !== undefined && datos.data.steps.length === 0 && (
         <p className="text-xs opacity-80">Este turno no tiene recordatorios programados.</p>
       )}

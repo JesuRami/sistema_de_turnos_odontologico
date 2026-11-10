@@ -13,6 +13,7 @@ import { useAuth } from "../../shared/auth/AuthProvider";
 import { useClock } from "../../shared/time/now";
 import { dateKeyOf } from "../../shared/time/zoned";
 import { Alert, Button, Modal, PageTitle, SelectField, TextArea, TextField } from "../../shared/ui";
+import { Skeleton } from "../../shared/ui/Skeleton";
 import {
   prioritizeEntry,
   unprioritizeEntry,
@@ -129,7 +130,7 @@ function WaitingListPage(): JSX.Element {
         <TextField label="Período hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
       </div>
 
-      {cola.isPending && <p className="text-sm">Cargando la cola…</p>}
+      {cola.isPending && <Skeleton label="Cargando la cola…" rows={4} />}
       {cola.isError && (
         <Alert>
           {messageFor(cola.error)}{" "}

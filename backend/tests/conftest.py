@@ -44,6 +44,15 @@ os.environ["DATABASE_URL"] = (
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 # ≥32 bytes: el arranque rechaza secretos cortos desde C-03.
 os.environ.setdefault("JWT_SECRET", "test-secret-no-produccion-32-bytes-minimo")
+# C-14: `alembic/env.py` prefiere MIGRATION_DATABASE_URL; en tests cada DB temporal se migra por
+# DATABASE_URL, así que una variable heredada del shell apuntaría las migraciones a otra base.
+os.environ.pop("MIGRATION_DATABASE_URL", None)
+# C-14 (D5): el rate-limit global en Redis se comparte entre todas las apps de la sesión de tests
+# (misma IP 127.0.0.1); por defecto los tests cuentan en memoria por app, como antes. Los tests
+# del backend Redis lo piden explícitamente.
+os.environ.setdefault("GLOBAL_RATE_LIMIT_BACKEND", "memory")
+# C-14 (D2): logs legibles en la salida de pytest.
+os.environ.setdefault("LOG_FORMAT", "text")
 
 
 @dataclass

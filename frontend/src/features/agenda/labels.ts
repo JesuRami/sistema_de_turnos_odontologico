@@ -1,5 +1,5 @@
 /** Etiquetas en español de estados y motivos (texto además del color: accesibilidad). */
-import type { AppointmentStatus, BlockReason, CancellationReason } from "../../shared/api/types";
+import type { AppointmentOrigin, AppointmentStatus, BlockReason, CancellationReason } from "../../shared/api/types";
 
 export const STATUS_LABEL: Record<AppointmentStatus, string> = {
   pending: "Pendiente",
@@ -33,4 +33,11 @@ export const CANCELLATION_REASON_LABEL: Record<CancellationReason, string> = {
   clinica: "Clínica",
   bloqueo: "Bloqueo de agenda",
   otro: "Otro"
+};
+
+/** Canal por el que nació el turno (C-14: visible para recepción en el detalle y la impresión). */
+export const ORIGIN_LABEL: Record<AppointmentOrigin, string> = {
+  reception: "Recepción",
+  online: "Reserva online",
+  waitlist: "Lista de espera"
 };

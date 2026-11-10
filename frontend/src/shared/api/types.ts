@@ -102,6 +102,8 @@ export interface ClinicPolicies {
   waitlist_offer_ttl_hours: number;
   /** Teléfono de derivación pública en E.164 (C-08); `null` = sin cargar. */
   contact_phone: string | null;
+  /** Umbral mensual de costo de WhatsApp en USD con 6 decimales (C-14); `null` = sin alerta. */
+  whatsapp_monthly_alert_usd: string | null;
 }
 
 // ---------------------------------------------------------------- turnos (C-05)
@@ -535,4 +537,40 @@ export interface WaitlistReport {
   to_date: string;
   rows: WaitlistReportRow[];
   totals: WaitlistReportTotals;
+}
+
+// ---------------------------------------------------------------- piloto (C-14)
+
+export interface PilotMetric {
+  key: string;
+  /** Proporción 0–1; `null` sin base (denominador 0). */
+  value: number | null;
+  target: number | null;
+  met: boolean | null;
+  numerator: number;
+  denominator: number;
+  baseline_pct?: number | null;
+  delta_vs_baseline_pct?: number | null;
+}
+
+export interface PilotReport {
+  from_date: string;
+  to_date: string;
+  overlaps: number;
+  overlaps_ok: boolean;
+  no_show: PilotMetric;
+  confirmation_before_24h: PilotMetric;
+  waitlist_recovery: PilotMetric;
+  online_share: PilotMetric;
+}
+
+export type WhatsAppBudgetStatus = "disabled" | "ok" | "warning" | "exceeded";
+
+export interface WhatsAppBudget {
+  month: string;
+  currency: "USD";
+  spent_usd: string;
+  threshold_usd: string | null;
+  used_pct: number | null;
+  status: WhatsAppBudgetStatus;
 }

@@ -4,6 +4,7 @@ import PoliciesPage from "./features/admin/PoliciesPage";
 import ProfessionalsAdmin from "./features/admin/ProfessionalsAdmin";
 import SchedulesAdmin from "./features/admin/SchedulesAdmin";
 import AgendaPage from "./features/agenda/AgendaPage";
+import PrintableDay from "./features/agenda/PrintableDay";
 import BlocksPage from "./features/blocks/BlocksPage";
 import MergePatientsPage from "./features/patients/MergePatientsPage";
 import ReportsPage from "./features/reports/ReportsPage";
@@ -29,6 +30,15 @@ function App(): JSX.Element {
         <Route path="/cambiar-clave" element={<ChangePasswordPage />} />
         <Route element={<StaffLayout />}>
           <Route path="/" element={<AgendaPage />} />
+          {/* SU-06 (C-14): agenda del día en papel por si se corta internet. */}
+          <Route
+            path="/agenda/imprimir"
+            element={
+              <RequireRole roles={["admin", "recepcion"]}>
+                <PrintableDay />
+              </RequireRole>
+            }
+          />
           <Route path="/bloqueos" element={<BlocksPage />} />
           <Route path="/lista-de-espera" element={<WaitingListPage />} />
           <Route

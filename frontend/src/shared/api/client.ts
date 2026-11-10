@@ -7,7 +7,9 @@
  * - Si la renovación falla, avisa con `onUnauthorized` para cerrar la sesión.
  * - Los errores son `ApiError {status, detail, extra}`; `extra` lleva las claves
  *   públicas del cuerpo (`conflicts`, `alternatives`, `blocks`, ...).
+ * - C-14: cada pedido informa al store de red si llegó o no al servidor.
  */
+import { networkStatus } from "../network/status";
 
 // Origen del backend; vacío = mismo origen (proxy de Vite / nginx).
 const API_ORIGIN: string = (import.meta.env.VITE_API_ORIGIN as string | undefined) ?? "";
@@ -119,16 +121,21 @@ async function send(path: string, options: RequestOptions, token: string | null)
   if (token !== null && (options.auth !== false || options.accessToken !== undefined)) {
     headers.Authorization = `Bearer ${token}`;
   }
+  let response: Response;
   try {
-    return await fetch(buildUrl(path, options.query), {
+    response = await fetch(buildUrl(path, options.query), {
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       credentials: "include"
     });
   } catch {
+    // C-14 (D11): el servidor no respondió; el banner de red lo muestra hasta la próxima respuesta.
+    networkStatus.reportNetworkError();
     throw new ApiError(0, "network_error");
   }
+  networkStatus.reportOk();
+  return response;
 }
 
 async function parse<T>(response: Response, responseType: "json" | "blob" = "json"): Promise<T> {

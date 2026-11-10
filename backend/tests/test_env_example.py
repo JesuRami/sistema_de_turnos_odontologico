@@ -48,6 +48,19 @@ def test_claves_requeridas_presentes_en_ejemplo() -> None:
         "WAITLIST_MIN_OFFER_WINDOW_MINUTES",
         "WAITLIST_MAX_CONSECUTIVE_EXPIRED",
         "WAITLIST_TICK_BATCH_SIZE",
+        # C-14: borde HTTP, logs, timeouts de DB y separación migración/app.
+        "ALLOWED_HOSTS",
+        "SECURITY_HSTS_SECONDS",
+        "LOG_LEVEL",
+        "LOG_FORMAT",
+        "DB_STATEMENT_TIMEOUT_MS",
+        "DB_LOCK_TIMEOUT_MS",
+        "DB_IDLE_TX_TIMEOUT_MS",
+        "GLOBAL_RATE_LIMIT_BACKEND",
+        "WEBHOOK_INVALID_SIGNATURE_RATE_LIMIT",
+        "MIGRATION_DATABASE_URL",
+        "APP_DB_USER",
+        "APP_DB_PASSWORD",
     ):
         assert expected in keys, f"{expected} falta en .env.example"
     assert any(k.startswith("META_") for k in keys), "faltan claves META_*"

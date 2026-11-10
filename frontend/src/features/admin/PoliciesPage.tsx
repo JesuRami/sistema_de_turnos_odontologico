@@ -40,7 +40,11 @@ function PoliciesView({ p }: { p: ClinicPolicies }): JSX.Element {
     ["Recordatorios", describirPasos(p.reminder_steps)],
     ["Tope de sobreturnos por profesional y día", String(p.max_overbookings_per_day)],
     ["Vigencia de ofertas de lista de espera", `${p.waitlist_offer_ttl_hours} h`],
-    ["Teléfono de contacto", p.contact_phone ?? "Sin cargar"]
+    ["Teléfono de contacto", p.contact_phone ?? "Sin cargar"],
+    [
+      "Alerta de costo mensual de WhatsApp",
+      p.whatsapp_monthly_alert_usd !== null ? `US$ ${p.whatsapp_monthly_alert_usd}` : "Sin alerta"
+    ]
   ];
   return (
     <dl className="grid max-w-xl grid-cols-2 gap-x-4 gap-y-2 rounded bg-white p-4 text-sm shadow-sm">
@@ -58,6 +62,7 @@ function PoliciesForm({ actuales }: { actuales: ClinicPolicies }): JSX.Element {
   const save = useSave([queryKeys.policies]);
   const [p, setP] = useState<ClinicPolicies>(actuales);
   const [aviso, setAviso] = useState(false);
+  const [errorAlerta, setErrorAlerta] = useState<string | null>(null);
   useEffect(() => setP(actuales), [actuales]);
   const set = <K extends keyof ClinicPolicies>(k: K, v: ClinicPolicies[K]): void => {
     setAviso(false);
@@ -88,6 +93,17 @@ function PoliciesForm({ actuales }: { actuales: ClinicPolicies }): JSX.Element {
     const telefono = (p.contact_phone ?? "").trim();
     if (telefono !== "" && telefono !== actuales.contact_phone) {
       body.contact_phone = telefono;
+    }
+    // C-14 (D8): umbral en USD; vacío o 0 apaga la alerta. Solo informa, no corta envíos.
+    const alerta = (p.whatsapp_monthly_alert_usd ?? "").trim().replace(",", ".");
+    const alertaNumero = alerta === "" ? 0 : Number(alerta);
+    if (!Number.isFinite(alertaNumero) || alertaNumero < 0 || alertaNumero > 100_000) {
+      setErrorAlerta("El umbral tiene que ser un monto en dólares entre 0 y 100000");
+      return;
+    }
+    setErrorAlerta(null);
+    if (alertaNumero !== Number(actuales.whatsapp_monthly_alert_usd ?? 0)) {
+      body.whatsapp_monthly_alert_usd = alerta === "" ? "0" : alerta;
     }
     if (Object.keys(body).length === 0) {
       return;
@@ -132,6 +148,17 @@ function PoliciesForm({ actuales }: { actuales: ClinicPolicies }): JSX.Element {
         value={p.contact_phone ?? ""}
         onChange={(e) => set("contact_phone", e.target.value)}
       />
+      <TextField
+        label="Alerta de costo mensual de WhatsApp (US$)"
+        type="number"
+        min={0}
+        max={100000}
+        step="0.01"
+        hint="Avisa al admin al llegar al 80 % y al superarlo. No corta los envíos. Vacío o 0 = sin alerta."
+        value={p.whatsapp_monthly_alert_usd ?? ""}
+        onChange={(e) => set("whatsapp_monthly_alert_usd", e.target.value === "" ? null : e.target.value)}
+      />
+      {errorAlerta !== null && <Alert>{errorAlerta}</Alert>}
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Pasos de recordatorio</legend>
         {p.reminder_steps.map((paso, i) => (

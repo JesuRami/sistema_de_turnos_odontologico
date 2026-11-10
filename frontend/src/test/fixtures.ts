@@ -11,7 +11,8 @@ import type {
   Professional,
   ReminderTimelineStep,
   ReminderTimeline,
-  ScheduleRule
+  ScheduleRule,
+  WhatsAppBudget
 } from "../shared/api/types";
 
 export const TZ = "America/Argentina/Buenos_Aires";
@@ -104,7 +105,17 @@ export const POLICIES: ClinicPolicies = {
   ],
   max_overbookings_per_day: 2,
   waitlist_offer_ttl_hours: 4,
-  contact_phone: null
+  contact_phone: null,
+  whatsapp_monthly_alert_usd: null
+};
+
+export const BUDGET_DISABLED: WhatsAppBudget = {
+  month: "2030-01",
+  currency: "USD",
+  spent_usd: "0.000000",
+  threshold_usd: null,
+  used_pct: null,
+  status: "disabled"
 };
 
 export interface AgendaData {
@@ -115,6 +126,7 @@ export interface AgendaData {
   blocks?: Block[];
   policies?: ClinicPolicies;
   followUp?: FollowUpPage;
+  budget?: WhatsAppBudget;
 }
 
 const page = <T,>(items: T[]) => HttpResponse.json({ items, next_cursor: null });
@@ -129,7 +141,9 @@ export function agendaHandlers(data: AgendaData = {}): HttpHandler[] {
     http.get("/api/appointments", () => page(data.appointments ?? [])),
     http.get("/api/blocks", () => page(data.blocks ?? [])),
     http.get("/api/clinic/policies", () => HttpResponse.json(data.policies ?? POLICIES)),
-    http.get("/api/reminders/follow-up", () => HttpResponse.json(data.followUp ?? followUpPage()))
+    http.get("/api/reminders/follow-up", () => HttpResponse.json(data.followUp ?? followUpPage())),
+    // C-14: el layout del admin consulta el presupuesto de WhatsApp del mes.
+    http.get("/api/reports/whatsapp/budget", () => HttpResponse.json(data.budget ?? BUDGET_DISABLED))
   ];
 }
 

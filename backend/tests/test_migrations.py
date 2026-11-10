@@ -898,3 +898,55 @@ def test_ciclo_de_c12_con_datos_de_c11(temp_database: str) -> None:
     ) == [(1,)]
 
     command.upgrade(cfg, "head")
+
+
+def _privilegios(url: str, tabla: str) -> set[str]:
+    rows = fetch_rows(
+        "SELECT privilege_type FROM information_schema.role_table_grants "
+        f"WHERE grantee = 'app_writer' AND table_name = '{tabla}'",
+        url,
+    )
+    return {str(r[0]) for r in rows}
+
+
+def test_ciclo_de_c14_con_datos_de_c12(temp_database: str) -> None:
+    """C-14 (D7/D8): `upgrade` → `downgrade c12` → `upgrade` con una clínica existente.
+
+    Regla 11: el CHECK nuevo sobre `clinic` (tabla con filas) queda validado. El rol `app_writer`
+    tiene `SELECT, INSERT, UPDATE` en tablas operativas, solo `SELECT, INSERT` en las append-only y
+    ningún `DELETE`. El downgrade quita la columna y los privilegios de esta base.
+    """
+    cfg = alembic_config()
+    command.upgrade(cfg, "c12_waiting_list")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia', 'clinica-c14-ciclo')", ()),
+    )
+
+    command.upgrade(cfg, "head")
+    assert fetch_rows("SELECT whatsapp_monthly_alert_micros FROM clinic", temp_database) == [
+        (None,)
+    ]
+    assert fetch_rows(
+        "SELECT convalidated FROM pg_constraint "
+        "WHERE conname = 'ck_clinic_whatsapp_monthly_alert_positive'",
+        temp_database,
+    ) == [(True,)]
+    assert _privilegios(temp_database, "appointment") == {"SELECT", "INSERT", "UPDATE"}
+    assert _privilegios(temp_database, "appointment_event") == {"SELECT", "INSERT"}
+    assert _privilegios(temp_database, "waitlist_event") == {"SELECT", "INSERT"}
+    assert _privilegios(temp_database, "alembic_version") == {"SELECT"}
+    for tabla in TABLAS:
+        assert "DELETE" not in _privilegios(temp_database, tabla), tabla
+        assert "TRUNCATE" not in _privilegios(temp_database, tabla), tabla
+
+    command.downgrade(cfg, "c12_waiting_list")
+    assert fetch_rows(
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_name = 'clinic' AND column_name = 'whatsapp_monthly_alert_micros'",
+        temp_database,
+    ) == [(0,)]
+    assert _privilegios(temp_database, "appointment") == set()
+
+    command.upgrade(cfg, "head")
+    assert _privilegios(temp_database, "appointment") == {"SELECT", "INSERT", "UPDATE"}

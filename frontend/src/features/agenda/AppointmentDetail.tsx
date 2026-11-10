@@ -6,7 +6,7 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch } from "../../shared/api/client";
+import { ApiError, apiFetch } from "../../shared/api/client";
 import { messageFor } from "../../shared/api/errors";
 import { queryKeys } from "../../shared/api/queries";
 import type {
@@ -15,15 +15,20 @@ import type {
   TransitionRequest,
   TransitionTarget
 } from "../../shared/api/types";
+import { retryQueue } from "../../shared/offline/retryQueue";
 import { useClock } from "../../shared/time/now";
 import { dateKeyOf, formatDayLabel, formatTime } from "../../shared/time/zoned";
 import { Alert, Button, Modal, SelectField, TextArea } from "../../shared/ui";
 import { allowedActions } from "./allowedActions";
 import type { AgendaContext } from "./context";
-import { CANCELLATION_REASON_LABEL, STATUS_LABEL, STATUS_STYLE } from "./labels";
+import { CANCELLATION_REASON_LABEL, ORIGIN_LABEL, STATUS_LABEL, STATUS_STYLE } from "./labels";
 import ReminderTimeline from "./ReminderTimeline";
 
 const MOTIVOS = Object.keys(CANCELLATION_REASON_LABEL) as CancellationReason[];
+
+// C-14 (D11, Open Decision 3): sin red, la confirmación y la asistencia quedan en cola (ya pasaron
+// en el mostrador y repetirlas no rompe). La cancelación no: dispara lista de espera y avisos.
+const ENCOLABLES = new Set<TransitionTarget>(["confirmed", "present", "absent", "no_show"]);
 
 const EXITO: Record<TransitionTarget, string> = {
   confirmed: "Turno confirmado",
@@ -77,6 +82,24 @@ function AppointmentDetail({
       await queryClient.invalidateQueries({ queryKey: queryKeys.followUp });
       onDone(EXITO[body.to]);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 0 && ENCOLABLES.has(body.to)) {
+        const etiqueta = `${EXITO[body.to]} · ${formatTime(inicio, tz)} · ${sillon?.name ?? "Sillón"}`;
+        retryQueue.enqueue({
+          id: `${appointment.id}:${body.to}`,
+          label: etiqueta,
+          run: () =>
+            apiFetch<Appointment>(`/api/appointments/${appointment.id}/transitions`, {
+              method: "POST",
+              body
+            }),
+          onDone: () => {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.appointments });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.followUp });
+          }
+        });
+        onDone(`Sin conexión: "${EXITO[body.to]}" quedó en cola y se envía al volver la red`);
+        return;
+      }
       setError(messageFor(e));
     } finally {
       setEnviando(false);
@@ -114,6 +137,9 @@ function AppointmentDetail({
           <dt className="sr-only">Estado</dt>
           <dd className={`rounded px-1.5 text-xs ${STATUS_STYLE[appointment.status]}`}>
             {STATUS_LABEL[appointment.status]}
+          </dd>
+          <dd className="rounded bg-slate-100 px-1.5 text-xs text-slate-700">
+            {ORIGIN_LABEL[appointment.origin]}
           </dd>
           {appointment.is_overbooking && (
             <dd className="rounded bg-violet-100 px-1.5 text-xs text-violet-900">

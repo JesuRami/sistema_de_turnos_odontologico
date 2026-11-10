@@ -2,7 +2,16 @@
 
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, Index, Integer, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Index,
+    Integer,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,6 +45,11 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint(
             "whatsapp_phone_number_id IS NULL OR whatsapp_phone_number_id ~ '^[0-9]{5,32}$'",
             name="whatsapp_phone_number_id_format",
+        ),
+        # Umbral mensual de costo de WhatsApp (C-14, D8). NULL = sin alerta.
+        CheckConstraint(
+            "whatsapp_monthly_alert_micros IS NULL OR whatsapp_monthly_alert_micros > 0",
+            name="whatsapp_monthly_alert_positive",
         ),
         # Un número propio es de una sola clínica; las que usan el compartido quedan en NULL.
         Index(
@@ -72,3 +86,5 @@ class Clinic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     contact_phone: Mapped[str | None] = mapped_column(Text, nullable=True)
     # `phone_number_id` de Meta del número propio (C-10). NULL = usa el número compartido.
     whatsapp_phone_number_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Alerta de costo mensual de WhatsApp en USD × 10⁻⁶ (C-14, D8, SU-07). Sin corte de envíos.
+    whatsapp_monthly_alert_micros: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

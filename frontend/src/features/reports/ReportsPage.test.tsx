@@ -205,7 +205,7 @@ describe("ReportsPage", () => {
     expect(screen.queryByRole("tablist", { name: "Reportes" })).not.toBeInTheDocument();
   });
 
-  it("muestra las seis pestañas y el mes en curso en la hora de la clínica", async () => {
+  it("muestra las siete pestañas y el mes en curso en la hora de la clínica", async () => {
     await renderAdmin();
 
     expect(await screen.findByRole("tab", { name: "Ocupación" })).toHaveAttribute(
@@ -218,6 +218,7 @@ describe("ReportsPage", () => {
       "Cancelaciones",
       "WhatsApp",
       "Lista de espera",
+      "Piloto",
       "Auditoría"
     ]);
     expect(screen.getByLabelText("Desde")).toHaveValue("2030-01-01");

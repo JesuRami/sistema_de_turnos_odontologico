@@ -22,28 +22,10 @@ jobs:
       - name: Typecheck estricto
         working-directory: frontend
         run: npm run typecheck
-      - name: Build Vite
-        working-directory: frontend
-        run: npm run build
-
-  playwright-smoke:
-    # Stub del circuito crítico (reserva→recordatorio→confirmación→presente):
-    # permitido-fallar hasta C-14 para no bloquear C-01…C-13 con E2E inmaduro.
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Instalar Playwright
-        working-directory: frontend
-        run: npm install -D @playwright/test && npx playwright install --with-deps chromium
-        continue-on-error: true
-      - name: Smoke del circuito crítico (skip hasta C-14)
-        working-directory: frontend
-        run: npx playwright test --list
-        continue-on-error: true
       - name: Tests unitarios y de componentes (Vitest)
         working-directory: frontend
         run: npm run test
+      - name: Build Vite
+        working-directory: frontend
+        run: npm run build
+# C-14: el E2E con Playwright corre en .github/workflows/ci-e2e.yml contra el stack real.

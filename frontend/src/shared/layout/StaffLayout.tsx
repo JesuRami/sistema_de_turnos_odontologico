@@ -1,6 +1,9 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { BudgetBanner } from "../../features/reports/BudgetBanner";
 import type { UserRole } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
+import { NetworkBanner } from "../network/NetworkBanner";
+import { RetryQueueIndicator } from "../offline/RetryQueueIndicator";
 import { Button } from "../ui";
 
 interface NavItem {
@@ -29,7 +32,10 @@ const ROL: Record<UserRole, string> = {
   odontologo: "Odontólogo/a"
 };
 
-/** Marco de las pantallas del personal: menú por rol y cierre de sesión. */
+/**
+ * Marco de las pantallas del personal: menú por rol y cierre de sesión. C-14: avisos de conexión,
+ * cola de cambios pendientes y presupuesto de WhatsApp (admin); nada de esto sale al imprimir.
+ */
 function StaffLayout(): JSX.Element {
   const { user, session } = useAuth();
   const navigate = useNavigate();
@@ -42,7 +48,7 @@ function StaffLayout(): JSX.Element {
 
   return (
     <div className="min-h-screen bg-enamel text-dental-900">
-      <header className="flex flex-wrap items-center gap-4 bg-dental-600 px-4 py-2 text-white">
+      <header className="flex flex-wrap items-center gap-4 bg-dental-600 px-4 py-2 text-white print:hidden">
         <span className="font-semibold">Turnos</span>
         <nav aria-label="Secciones" className="flex flex-1 flex-wrap gap-1">
           {NAV.filter((item) => rol !== undefined && item.roles.includes(rol)).map((item) => (
@@ -65,7 +71,10 @@ function StaffLayout(): JSX.Element {
           Cerrar sesión
         </Button>
       </header>
-      <main className="p-4">
+      <NetworkBanner offlineHint="La confirmación y la asistencia que registres quedan en cola y se envían al volver." />
+      <RetryQueueIndicator />
+      <BudgetBanner enabled={rol === "admin"} />
+      <main className="p-4 print:p-0">
         <Outlet />
       </main>
     </div>

@@ -159,3 +159,46 @@ class WaitlistReport(BaseModel):
     to_date: date
     rows: list[WaitlistReportRow]
     totals: WaitlistReportTotals
+
+
+# ------------------------------------------------------------------ C-14 (D8/D9)
+
+
+class PilotMetric(BaseModel):
+    """Una métrica de éxito del piloto con su base: `value`/`met` en `None` sin denominador."""
+
+    key: str
+    value: float | None
+    target: float | None
+    met: bool | None
+    numerator: int
+    denominator: int
+    baseline_pct: float | None = None
+    delta_vs_baseline_pct: float | None = None
+
+
+class PilotReport(BaseModel):
+    """Métricas del piloto (KB `01` §Métricas de éxito) para un rango de días locales."""
+
+    from_date: date
+    to_date: date
+    overlaps: int
+    overlaps_ok: bool
+    no_show: PilotMetric
+    confirmation_before_24h: PilotMetric
+    waitlist_recovery: PilotMetric
+    online_share: PilotMetric
+
+
+WhatsAppBudgetStatus = Literal["disabled", "ok", "warning", "exceeded"]
+
+
+class WhatsAppBudget(BaseModel):
+    """Costo de WhatsApp del mes local en curso contra el umbral de la clínica (SU-07)."""
+
+    month: str
+    currency: Literal["USD"] = "USD"
+    spent_usd: str
+    threshold_usd: str | None
+    used_pct: float | None
+    status: WhatsAppBudgetStatus

@@ -7,6 +7,7 @@ se editan solo sobre la clínica del principal y cada cambio se audita.
 
 import uuid
 from collections.abc import Sequence
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -42,6 +43,22 @@ async def get_clinic_profile(session: AsyncSession, principal: Principal) -> Cli
     return ClinicProfile(id=fila.id, name=fila.name, timezone=fila.timezone)
 
 
+_MICROS = Decimal(1_000_000)
+
+
+def micros_from_usd(valor: Decimal) -> int | None:
+    """`Decimal("12.5")` → `12_500_000`; `0` → `None` (sin alerta)."""
+    micros = int((valor * _MICROS).to_integral_value())
+    return micros if micros > 0 else None
+
+
+def usd_from_micros(micros: int | None) -> str | None:
+    """`12_500_000` → `"12.500000"` (mismo formato que el reporte de WhatsApp de C-10)."""
+    if micros is None:
+        return None
+    return str((Decimal(micros) / _MICROS).quantize(Decimal("0.000001")))
+
+
 class PoliciesService:
     """Lectura y edición de las políticas de la clínica del principal (US-004).
 
@@ -68,6 +85,7 @@ class PoliciesService:
                 "max_overbookings_per_day": clinic.max_overbookings_per_day,
                 "waitlist_offer_ttl_hours": clinic.waitlist_offer_ttl_hours,
                 "contact_phone": clinic.contact_phone,
+                "whatsapp_monthly_alert_usd": usd_from_micros(clinic.whatsapp_monthly_alert_micros),
             }
         )
 
@@ -82,6 +100,11 @@ class PoliciesService:
                 valores["contact_phone"] = normalize_phone_e164(valores["contact_phone"])
             except InvalidPhoneError:
                 raise DomainError(422, _INVALID_PHONE) from None
+        if "whatsapp_monthly_alert_usd" in valores:
+            # C-14 (D8): se guarda en micro-dólares; 0 apaga la alerta (NULL).
+            valores["whatsapp_monthly_alert_micros"] = micros_from_usd(
+                valores.pop("whatsapp_monthly_alert_usd")
+            )
         cambios = apply_changes(clinic, valores)
         if cambios:
             await self.session.flush()

@@ -7,6 +7,12 @@ import { useState, type FormEvent } from "react";
 import { ApiError } from "../../shared/api/client";
 import { messageFor } from "../../shared/api/errors";
 import { useProfessionals } from "../../shared/api/queries";
+import {
+  firstError,
+  validateDateRange,
+  validateFreeText,
+  validateTimeWindow
+} from "../../shared/forms/validators";
 import type { EntryPreferences, WaitingListEntry } from "../../shared/api/types";
 import { Alert, Button, SelectField, TextArea, TextField } from "../../shared/ui";
 import { PatientSearch, type PickedPatient } from "../patients/PatientPicker";
@@ -55,6 +61,16 @@ function EntryForm({ entry, today, onDone, onShowExisting }: EntryFormProps): JS
     event.preventDefault();
     if (entry === undefined && patient === null) {
       setError(new Error("Elegí un paciente"));
+      return;
+    }
+    // C-14 (D11): mismas reglas que la API, antes de enviar (la API sigue siendo la autoridad).
+    const invalido = firstError(
+      validateDateRange(dateFrom, dateTo),
+      validateTimeWindow(timeFrom, timeTo),
+      validateFreeText(notes)
+    );
+    if (invalido !== null) {
+      setError(new Error(invalido));
       return;
     }
     const prefs: EntryPreferences = {

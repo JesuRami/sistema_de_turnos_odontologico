@@ -1,5 +1,6 @@
 /**
- * Reportes y auditoría para administración (C-13, US-050/US-051; pestaña WhatsApp en C-10).
+ * Reportes y auditoría para administración (C-13, US-050/US-051; pestaña WhatsApp en C-10;
+ * pestaña Piloto con las métricas de éxito en C-14).
  * Rango por defecto: el mes en curso en la zona de la clínica. Todo se calcula en el
  * backend desde la auditoría; esta pantalla solo presenta y descarga.
  */
@@ -18,8 +19,16 @@ import {
   WaitlistPanel,
   WhatsAppPanel
 } from "./Panels";
+import { PilotPanel } from "./PilotPanel";
 
-type TabId = "occupancy" | "absenteeism" | "cancellations" | "whatsapp" | "waitlist" | "audit";
+type TabId =
+  | "occupancy"
+  | "absenteeism"
+  | "cancellations"
+  | "whatsapp"
+  | "waitlist"
+  | "pilot"
+  | "audit";
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: "occupancy", label: "Ocupación" },
@@ -27,6 +36,7 @@ const TABS: readonly { id: TabId; label: string }[] = [
   { id: "cancellations", label: "Cancelaciones" },
   { id: "whatsapp", label: "WhatsApp" },
   { id: "waitlist", label: "Lista de espera" },
+  { id: "pilot", label: "Piloto" },
   { id: "audit", label: "Auditoría" }
 ];
 
@@ -131,6 +141,7 @@ function ReportsPage(): JSX.Element {
           {tab === "cancellations" && <CancellationsPanel range={range} />}
           {tab === "whatsapp" && <WhatsAppPanel range={range} />}
           {tab === "waitlist" && <WaitlistPanel range={range} />}
+          {tab === "pilot" && <PilotPanel range={range} />}
           {tab === "audit" && (
             <AuditPanel
               range={range}

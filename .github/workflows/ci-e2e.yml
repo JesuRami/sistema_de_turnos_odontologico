@@ -1,0 +1,127 @@
+name: e2e
+
+# C-14 (D12): circuito crítico completo contra el stack real (regla 9). Reemplaza el stub
+# `playwright-smoke` (permitido-fallar hasta C-14). La API y el worker corren con el usuario de
+# `app_writer` (sin DELETE, append-only sin UPDATE): el E2E también prueba los permisos de la base.
+
+on:
+  push:
+    paths: ["backend/**", "frontend/**", "requirements.txt", "alembic.ini", ".github/workflows/ci-e2e.yml"]
+  pull_request:
+    paths: ["backend/**", "frontend/**", "requirements.txt", "alembic.ini", ".github/workflows/ci-e2e.yml"]
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:15.8-bookworm
+        env:
+          POSTGRES_USER: turnos
+          POSTGRES_PASSWORD: ci-secret
+          POSTGRES_DB: turnos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U turnos -d turnos"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.4-bookworm
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      # Dueño del schema: migraciones, alta del usuario de la app y seed.
+      MIGRATION_DATABASE_URL: postgresql+asyncpg://turnos:ci-secret@localhost:5432/turnos
+      APP_DB_USER: turnos_app
+      APP_DB_PASSWORD: ci-app-password-solo-tests-0001
+      REDIS_URL: redis://localhost:6379/0
+      REDIS_AUTH_DB: "15"
+      JWT_SECRET: ci-secret-solo-para-tests-32-bytes-minimo
+      MANAGE_LINK_SECRET: ci-links-secret-solo-para-tests-32-bytes
+      ENV: dev
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      CORS_ORIGINS: http://localhost:5173
+      FRONTEND_PUBLIC_URL: http://localhost:5173
+      LOG_FORMAT: text
+      # Recordatorios con proveedores simulados: el worker los marca enviados sin red externa.
+      REMINDER_WHATSAPP_PROVIDER: fake
+      REMINDER_EMAIL_PROVIDER: fake
+      # Una sola IP (127.0.0.1) hace todo el E2E: cupos holgados (README §E2E).
+      BOOKING_RATE_LIMIT: 100000/minute
+      GLOBAL_RATE_LIMIT_BACKEND: memory
+      PUBLIC_BOOKING_IP_RATE_LIMIT: 100000/3600s
+      PUBLIC_BOOKING_SLUG_RATE_LIMIT: 100000/3600s
+      PUBLIC_BOOKING_READ_RATE_LIMIT: 100000/60s
+      MANAGE_READ_IP_RATE_LIMIT: 100000/60s
+      MANAGE_WRITE_IP_RATE_LIMIT: 100000/60s
+      MANAGE_WRITE_TOKEN_RATE_LIMIT: 1000/60s
+      WAITLIST_PUBLIC_IP_RATE_LIMIT: 100000/3600s
+      AUTH_LOGIN_RATE_LIMIT: 1000/60s
+      AUTH_LOGIN_IP_RATE_LIMIT: 100000/60s
+      AUTH_REFRESH_RATE_LIMIT: 100000/60s
+      # Seed sintético (regla 13).
+      SEED_CLINIC_SLUG: clinica-demo
+      SEED_CLINIC_NAME: Clínica Demo Ficticia
+      SEED_ADMIN_EMAIL: admin@example.com
+      SEED_ADMIN_PASSWORD: clave-provisoria-ci-0001
+      SEED_BOOKING_DEMO: "true"
+      SEED_DEMO_USERS: "false"
+      # Playwright.
+      E2E_API: http://localhost:8000
+      E2E_ADMIN_EMAIL: admin@example.com
+      E2E_ADMIN_PASSWORD: clave-provisoria-ci-0001
+      E2E_PASSWORD: clave-definitiva-ci-0001-larga
+      E2E_MANAGE_LINK_SECRET: ci-links-secret-solo-para-tests-32-bytes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar backend
+        run: pip install -r requirements.txt
+      - name: Migrar, crear el usuario de la app y sembrar (como dueño)
+        env:
+          DATABASE_URL: postgresql+asyncpg://turnos:ci-secret@localhost:5432/turnos
+          PYTHONPATH: backend
+        run: |
+          alembic upgrade head
+          python -m app.ops.db_roles
+          python -m app.seed
+      - name: Levantar API y worker con el usuario de app_writer
+        env:
+          DATABASE_URL: postgresql+asyncpg://turnos_app:ci-app-password-solo-tests-0001@localhost:5432/turnos
+          PYTHONPATH: backend
+        run: |
+          mkdir -p logs
+          nohup uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --no-access-log > logs/api.log 2>&1 &
+          nohup python -m app.worker.entrypoint > logs/worker.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ready > /dev/null; then echo "API lista"; exit 0; fi
+            sleep 1
+          done
+          echo "la API no quedó lista"; cat logs/api.log; exit 1
+      - name: Instalar frontend y Chromium
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Playwright (circuito crítico, recepción, reserva, gestión, lista de espera)
+        working-directory: frontend
+        run: npx playwright test
+      - name: Logs y trazas si falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artefactos
+          path: |
+            logs/
+            frontend/test-results/
+            frontend/playwright-report/
+          retention-days: 7

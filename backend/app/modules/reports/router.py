@@ -13,7 +13,8 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import AwareDatetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,13 +26,18 @@ from app.common.principal import Principal
 from app.core.deps import get_db
 from app.models import AppointmentEventType, UserRole
 from app.modules.reports.audit_feed import list_audit
+from app.modules.reports.budget import whatsapp_budget
 from app.modules.reports.exports import ExportFormat, ExportService, iter_file
+from app.modules.reports.patient_export import PatientExportService
+from app.modules.reports.pilot import pilot_report
 from app.modules.reports.schemas import (
     AbsenteeismReport,
     AuditPage,
     CancellationsReport,
     OccupancyReport,
+    PilotReport,
     WaitlistReport,
+    WhatsAppBudget,
     WhatsAppReport,
 )
 from app.modules.reports.service import ReportsService
@@ -317,5 +323,77 @@ async def export_full(
                 f'attachment; filename="export-completo-{now.date().isoformat()}.zip"'
             ),
             "Content-Length": str(tamano),
+        },
+    )
+
+
+# ------------------------------------------------------------------ C-14 (D8/D9/D10)
+
+
+@router.get(
+    "/reports/whatsapp/budget",
+    response_model=WhatsAppBudget,
+    dependencies=[Depends(only_params())],
+)
+async def whatsapp_budget_status(
+    principal: AdminDep, session: DbSession, now: Now
+) -> WhatsAppBudget:
+    """Costo de WhatsApp del mes local en curso contra el umbral (SU-07). No corta envíos."""
+    return await whatsapp_budget(session, principal.clinic_id, now)
+
+
+@router.get(
+    "/reports/pilot",
+    response_model=PilotReport,
+    dependencies=[Depends(only_params("from", "to", "format", "baseline_no_show_pct"))],
+)
+async def pilot(
+    principal: AdminDep,
+    session: DbSession,
+    desde: Desde,
+    hasta: Hasta,
+    formato: Annotated[str, Query(alias="format")] = "json",
+    baseline_no_show_pct: Annotated[float | None, Query(gt=0, le=100)] = None,
+) -> PilotReport | Response:
+    """Métricas de éxito del piloto + auditoría de integridad de agenda (KB `01`)."""
+    fmt = _format(formato)
+    informe = await pilot_report(
+        session,
+        principal.clinic_id,
+        desde,
+        hasta,
+        baseline_no_show_pct=baseline_no_show_pct,
+    )
+    if fmt == "csv":
+        metricas = [
+            informe.no_show,
+            informe.confirmation_before_24h,
+            informe.waitlist_recovery,
+            informe.online_share,
+        ]
+        return csv_response(
+            f"piloto-{desde}-{hasta}.csv",
+            ["metric", "value", "target", "met", "numerator", "denominator"],
+            [["overlaps", informe.overlaps, 0, informe.overlaps_ok, informe.overlaps, ""]]
+            + [[m.key, m.value, m.target, m.met, m.numerator, m.denominator] for m in metricas],
+        )
+    return informe
+
+
+@router.get("/exports/patients/{patient_id}", dependencies=[Depends(only_params())])
+async def export_patient(
+    patient_id: uuid.UUID, principal: AdminDep, session: DbSession, now: Now
+) -> JSONResponse:
+    """Datos operativos de un paciente en JSON (acceso/portabilidad, C-14 D10). Auditado."""
+    servicio = PatientExportService(session, principal.clinic_id, principal.user_id)
+    documento = await servicio.build(patient_id)
+    await servicio.audit(patient_id, documento)
+    return JSONResponse(
+        jsonable_encoder(documento),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="paciente-{patient_id}-{now.date().isoformat()}.json"'
+            ),
+            "Cache-Control": "no-store",
         },
     )

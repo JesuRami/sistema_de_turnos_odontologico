@@ -21,4 +21,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/ready')"
 
 # Por defecto sirve la API; el worker sobrescribe el comando en Compose.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# C-14 (D2): sin access log de uvicorn (imprime el path real, que en /api/manage/{token} lleva el
+# token); lo reemplaza el log de acceso redactado del middleware de contexto.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

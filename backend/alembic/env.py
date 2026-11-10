@@ -23,9 +23,12 @@ target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    url = os.environ.get("DATABASE_URL", "")
+    # C-14 (D7): las migraciones corren con el dueño del schema (`MIGRATION_DATABASE_URL`); la
+    # app y el worker usan el usuario de `app_writer` en `DATABASE_URL`. Sin la primera se usa la
+    # segunda (tests y CI migran con el mismo usuario).
+    url = os.environ.get("MIGRATION_DATABASE_URL", "") or os.environ.get("DATABASE_URL", "")
     if not url:
-        raise SystemExit("DATABASE_URL es requerida para migrar")
+        raise SystemExit("MIGRATION_DATABASE_URL o DATABASE_URL es requerida para migrar")
     # El engine online es async: se fuerza el driver asyncpg.
     return async_database_url(url)
 

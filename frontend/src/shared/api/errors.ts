@@ -79,12 +79,31 @@ const MENSAJES: Record<string, string> = {
   offer_expired: "La oferta ya venció",
   offer_closed: "La oferta ya fue respondida o retirada",
   patient_busy: "El paciente ya tiene otro turno a esa hora",
-  offer_not_found: "La oferta no existe o el link venció"
+  offer_not_found: "La oferta no existe o el link venció",
+  // borde endurecido (C-14)
+  concurrent_update: "Otra persona estaba modificando lo mismo. Volvé a intentarlo",
+  conflict: "El cambio choca con datos que ya existen",
+  db_timeout: "El servidor tardó demasiado en responder. Probá de nuevo en unos segundos",
+  db_unavailable: "El servidor no está disponible en este momento. Probá de nuevo en unos minutos",
+  internal_error: GENERIC_ERROR,
+  invalid_host: GENERIC_ERROR,
+  method_not_allowed: GENERIC_ERROR
 };
+
+/** Código corto del error para que soporte lo cruce con los logs (`request_id`, sin PII). */
+export function supportCode(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.status < 500) {
+    return null;
+  }
+  const id = error.extra.request_id;
+  return typeof id === "string" && id !== "" ? id.slice(0, 8) : null;
+}
 
 export function messageFor(error: unknown): string {
   if (error instanceof ApiError) {
-    return MENSAJES[error.detail] ?? GENERIC_ERROR;
+    const mensaje = MENSAJES[error.detail] ?? GENERIC_ERROR;
+    const codigo = supportCode(error);
+    return codigo === null ? mensaje : `${mensaje} (código ${codigo})`;
   }
   return GENERIC_ERROR;
 }

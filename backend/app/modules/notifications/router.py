@@ -9,6 +9,10 @@
 
 Este path está fuera del rate-limit global (`app.main`): la firma es la autenticación y un 429
 haría que Meta reintente en ráfaga. Nada de este módulo loguea cuerpo, IP ni encabezados.
+
+C-14 (D5): solo las **firmas inválidas** consumen un cupo por IP
+(`WEBHOOK_INVALID_SIGNATURE_RATE_LIMIT`); agotado, el POST responde `429` sin verificar la firma.
+Un envío legítimo de Meta nunca consume cupo. Redis caído no bloquea: la firma se sigue exigiendo.
 """
 
 from __future__ import annotations
@@ -21,11 +25,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.clock import get_now
 from app.common.exceptions import DomainError
+from app.common.request_meta import client_ip
 from app.core.deps import get_db
+from app.core.rate_limit import hit, parse_window_spec
+from app.core.redis import get_redis
 from app.core.settings import Settings, get_settings
 from app.modules.notifications.service import WhatsAppWebhookService, parse_webhook
 from app.modules.notifications.signature import verify_signature
@@ -38,6 +47,7 @@ router = APIRouter(prefix=WEBHOOK_PATH, tags=["webhooks"])
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 Now = Annotated[datetime, Depends(get_now)]
+RedisDep = Annotated[Redis, Depends(get_redis)]
 
 _VERIFY_PARAMS = frozenset({"hub.mode", "hub.verify_token", "hub.challenge"})
 _CHALLENGE_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -77,14 +87,40 @@ async def _read_limited(request: Request, limite: int) -> bytes:
     return b"".join(partes)
 
 
+def invalid_signature_key(ip: str) -> str:
+    return f"rl:webhook:badsig:ip:{ip}"
+
+
+async def _over_bad_signature_budget(redis: Redis, ip: str, limit: int) -> int | None:
+    """Segundos a esperar si la IP agotó su cupo de firmas inválidas; `None` si puede seguir."""
+    try:
+        clave = invalid_signature_key(ip)
+        usados = await redis.get(clave)
+        if usados is not None and int(usados) >= limit:
+            ttl = int(await redis.ttl(clave))
+            return ttl if ttl > 0 else 1
+    except (RedisError, ValueError):
+        return None
+    return None
+
+
 @router.post("")
 async def receive_events(
-    request: Request, session: DbSession, settings: SettingsDep, now: Now
+    request: Request, session: DbSession, settings: SettingsDep, now: Now, redis: RedisDep
 ) -> JSONResponse:
+    limite, ventana = parse_window_spec(settings.WEBHOOK_INVALID_SIGNATURE_RATE_LIMIT)
+    ip = client_ip(request)
+    espera = await _over_bad_signature_budget(redis, ip, limite)
+    if espera is not None:
+        raise DomainError(429, "rate_limited", headers={"Retry-After": str(espera)})
     cuerpo = await _read_limited(request, settings.WHATSAPP_WEBHOOK_MAX_BYTES)
     firma = request.headers.get("x-hub-signature-256")
     if not verify_signature(settings.META_APP_SECRET.get_secret_value(), cuerpo, firma):
         logger.warning("webhook_signature_invalid")
+        try:
+            await hit(redis, invalid_signature_key(ip), limite, ventana)
+        except RedisError:
+            pass
         raise DomainError(401, "invalid_signature")
     webhook = parse_webhook(cuerpo)
     if webhook is None:

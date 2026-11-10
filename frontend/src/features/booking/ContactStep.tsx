@@ -1,4 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
+import { validateEmail, validatePhoneAR } from "../../shared/forms/validators";
 import BookingError from "./BookingError";
 import { OPT_IN_MESSAGE, type BookingField, type BookingProblem } from "./bookingErrors";
 import { CHOICE, CHOICE_ON } from "./ProfessionalStep";
@@ -134,6 +135,16 @@ function ContactStep({
       errores.set("optin", OPT_IN_MESSAGE);
       errores.set("phone", OPT_IN_MESSAGE);
     }
+    // C-14 (D11): formato antes de enviar. Con email cargado, un teléfono dudoso no bloquea: la API
+    // lo descarta y avisa por email (contrato de C-07, `phone_invalid_email_channel`).
+    const mailInvalido = validateEmail(mail);
+    if (mailInvalido !== null) {
+      errores.set("email", mailInvalido);
+    }
+    const telInvalido = validatePhoneAR(tel);
+    if (telInvalido !== null && mail === "" && !errores.has("phone")) {
+      errores.set("phone", telInvalido);
+    }
     if (!privacy) {
       errores.set("privacy", "Tenés que aceptar la política de privacidad");
     }
@@ -195,6 +206,7 @@ function ContactStep({
         autoComplete="email"
         invalid={invalido("email")}
         hint="Opcional si dejaste un teléfono"
+        error={contactoVacio ? undefined : local.get("email")}
       />
       {contactoVacio && (
         <p className="-mt-2 text-xs text-rose-800">{local.get("phone")}</p>

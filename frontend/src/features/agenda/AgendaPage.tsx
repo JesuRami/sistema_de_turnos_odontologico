@@ -5,6 +5,7 @@
  * Admin y recepción ven además el panel de seguimiento de recordatorios (C-11).
  */
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Appointment, AppointmentStatus, Block } from "../../shared/api/types";
 import {
   useAppointments,
@@ -28,6 +29,7 @@ import {
   type DateKey
 } from "../../shared/time/zoned";
 import { Alert, Button, PageTitle, SelectField } from "../../shared/ui";
+import { AgendaSkeleton } from "../../shared/ui/Skeleton";
 import AgendaGrid, { type Column, type GridAppointment, type GridBlock } from "./AgendaGrid";
 import AppointmentDetail from "./AppointmentDetail";
 import AppointmentForm, { type FormSeed } from "./AppointmentForm";
@@ -48,6 +50,11 @@ function blockPieces(block: Block, days: readonly DateKey[], tz: string): { day:
     const end = fin < to ? fin : to;
     return end > start ? [{ day, start, end }] : [];
   });
+}
+
+/** Hora local (del navegador) del último dato recibido: es para recepción, no para la agenda. */
+function horaDe(ms: number): string {
+  return new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
 }
 
 function AgendaPage(): JSX.Element {
@@ -184,7 +191,7 @@ function AgendaPage(): JSX.Element {
     return <Alert>No se pudo cargar la clínica. Recargá la página.</Alert>;
   }
   if (tz === null || dia === null) {
-    return <p className="text-sm">Cargando agenda…</p>;
+    return <AgendaSkeleton label="Cargando agenda…" />;
   }
 
   const paso = view === "day" ? 1 : 7;
@@ -202,7 +209,16 @@ function AgendaPage(): JSX.Element {
       <PageTitle
         actions={
           deMostrador && (
-            <Button onClick={() => setFormSeed({ day: dia })}>Nuevo turno</Button>
+            <div className="flex gap-2">
+              {/* SU-06 (C-14): copia en papel de la agenda del día por si se corta internet. */}
+              <Link
+                to={`/agenda/imprimir?dia=${dia}`}
+                className="rounded border border-dental-600/40 bg-white px-3 py-1.5 text-sm font-medium text-dental-900 hover:bg-dental-50"
+              >
+                Imprimir agenda del día
+              </Link>
+              <Button onClick={() => setFormSeed({ day: dia })}>Nuevo turno</Button>
+            </div>
           )
         }
       >
@@ -289,7 +305,16 @@ function AgendaPage(): JSX.Element {
       )}
       {(appointments.isError || blocks.isError) && (
         <div className="mb-3">
-          <Alert>No se pudieron cargar los turnos del rango. Reintentá en unos segundos.</Alert>
+          <Alert>
+            {appointments.data !== undefined
+              ? `No se pudo actualizar la agenda. Mostramos los datos de las ${horaDe(appointments.dataUpdatedAt)}; se reintenta sola.`
+              : "No se pudieron cargar los turnos del rango. Reintentá en unos segundos."}
+          </Alert>
+        </div>
+      )}
+      {appointments.data === undefined && appointments.isPending && range !== null && (
+        <div className="mb-3">
+          <AgendaSkeleton label="Cargando turnos…" />
         </div>
       )}
 

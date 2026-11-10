@@ -373,7 +373,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-14] `hardening-piloto`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[~]` implementado — pendiente gate CI + aprobación de Open Decisions (`openspec/changes/c-14-hardening-piloto/`)
 - **Scope**: Endurecimiento para piloto en 1-2 clínicas amigas (criterio: NO cadenas multi-sede — IN-02)
   - Headers seguros + CORS restrictivo + rate-limit global y estricto en booking/webhooks (Redis); validación Pydantic v2 en todos los bordes; E.164 con phonenumbers; logs sin PII (teléfonos enmascarados)
   - Backups cifrados Postgres con PITR; `MANAGE_TOKEN_TTL_H`, `BOOKING_RATE_LIMIT` calibrados; alerta de costo WhatsApp mensual por umbral (sin corte automático en v1.0)

@@ -68,7 +68,7 @@ describe("PilotPanel (C-14)", () => {
 
     await user.type(screen.getByLabelText("Ausentismo previo de la clínica (%)"), "20");
 
-    await waitFor(() => expect(pedidos.at(-1)?.get("baseline_no_show_pct")).toBe("20"));
+    await waitFor(() => expect(pedidos[pedidos.length - 1]?.get("baseline_no_show_pct")).toBe("20"));
     expect(await screen.findByText(/−40|-40/)).toBeInTheDocument();
   });
 

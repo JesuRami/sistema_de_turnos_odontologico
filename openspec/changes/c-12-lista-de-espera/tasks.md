@@ -282,7 +282,7 @@
   pestaña Lista de espera con cifras, tasa "—" sin ofertas y "Descargar CSV" con
   el rango; la pestaña WhatsApp nombra "Oferta de lista de espera". Verifica:
   tests verdes y `npm run typecheck` limpio.
-- [ ] 9.5 RED → GREEN — Playwright `frontend/e2e/waitlist.spec.ts` (circuito
+- [x] 9.5 RED → GREEN — Playwright `frontend/e2e/waitlist.spec.ts` (circuito
   crítico, regla 9): recepción anota a un paciente ficticio → cancela un turno
   compatible → la oferta aparece en el panel → el paciente abre `/o/:token` en
   360 px y acepta → el turno `waitlist` aparece confirmado en la agenda.
@@ -340,7 +340,7 @@
 | Frontend `npm test` | 234 passed, 0 failed (31 archivos; +35) |
 | Frontend `npm run typecheck` | limpio |
 | Frontend `npm run build` | no ejecutado (regla: solo si el usuario lo pide) |
-| Playwright `e2e/waitlist.spec.ts` (9.5) | **escrito, no ejecutado**: necesita la pila de Docker con el `worker` reiniciado y las credenciales de E2E |
+| Playwright `e2e/waitlist.spec.ts` (9.5) | **verde (2026-11-10)** contra la pila de Docker Compose (suite completa: 10 passed, 2 skipped del stub smoke) |
 | `openspec validate c-12-lista-de-espera --strict` | válido |
 
 ### 0.2 — Contexto de los botones de WhatsApp

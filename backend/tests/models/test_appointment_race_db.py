@@ -19,14 +19,12 @@ from tests.factories import make_chair, make_clinic, make_patient, make_professi
 
 pytestmark = pytest.mark.integration
 
-_INSERT = text(
-    """
+_INSERT = text("""
     INSERT INTO appointment (clinic_id, patient_id, professional_id, chair_id, starts_at,
                              ends_at, occupied_until, status, origin, created_by_user_id)
     VALUES (:clinic_id, :patient_id, :professional_id, :chair_id, :starts_at, :ends_at,
             :ends_at, 'confirmed', 'reception', :user_id)
-    """
-)
+    """)
 
 
 async def _datos(engine: AsyncEngine) -> dict[str, Any]:

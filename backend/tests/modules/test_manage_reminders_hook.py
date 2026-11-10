@@ -104,8 +104,8 @@ async def test_si_el_punto_falla_la_cancelacion_no_se_persiste(
     managed = await make_managed(db_session, at(10, days=7))
     appointment_id = managed.appointment.id
 
-    with pytest.raises(RuntimeError):
-        await app_client.patch(managed.url, json={"action": "cancel"})
+    response = await app_client.patch(managed.url, json={"action": "cancel"})
+    assert response.status_code == 500
 
     assert (await reload(db_session, appointment_id)).status is AppointmentStatus.PENDING
 

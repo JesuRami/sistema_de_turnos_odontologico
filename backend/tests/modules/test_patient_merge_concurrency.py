@@ -81,8 +81,7 @@ async def test_alta_espera_a_la_fusion_y_rechaza_al_duplicado(
         assert not alta.done(), "el alta debe esperar el lock de la fusión"
         await fusion.execute(
             text(
-                "UPDATE patient SET archived_at = now(), merged_into_patient_id = :c "
-                "WHERE id = :d"
+                "UPDATE patient SET archived_at = now(), merged_into_patient_id = :c WHERE id = :d"
             ),
             {"c": conservado.id, "d": duplicado.id},
         )

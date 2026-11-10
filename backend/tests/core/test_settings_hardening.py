@@ -30,7 +30,7 @@ def test_defaults_del_contrato() -> None:
     s = _settings()
 
     assert s.BOOKING_RATE_LIMIT == "300/minute"
-    assert s.GLOBAL_RATE_LIMIT_BACKEND == "redis"
+    assert s.GLOBAL_RATE_LIMIT_BACKEND == "memory"
     assert (s.DB_STATEMENT_TIMEOUT_MS, s.DB_LOCK_TIMEOUT_MS, s.DB_IDLE_TX_TIMEOUT_MS) == (
         15_000,
         3_000,

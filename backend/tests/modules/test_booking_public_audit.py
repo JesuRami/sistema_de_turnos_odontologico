@@ -98,9 +98,9 @@ async def test_una_falla_al_escribir_el_evento_revierte_turno_y_paciente_nuevo(
 
     monkeypatch.setattr("app.modules.appointments.service.record_event", _falla)
 
-    with pytest.raises(RuntimeError, match="inyectada"):
-        async with client_for(app) as client:
-            await client.post(_url(b), json=reserva(b, iso(10)))
+    async with client_for(app) as client:
+        res = await client.post(_url(b), json=reserva(b, iso(10)))
+        assert res.status_code == 500
 
     async with AsyncSession(committed_engine) as session:
         pacientes = await session.scalar(select(func.count()).select_from(Patient))

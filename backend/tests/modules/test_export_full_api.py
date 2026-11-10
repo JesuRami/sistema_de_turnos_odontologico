@@ -107,8 +107,7 @@ async def test_exporta_archivados_y_fusionados_y_neutraliza_formulas(
     agenda = await make_agenda(db_session, redis_client, settings)
     await db_session.execute(
         text(
-            "UPDATE patient SET full_name = '=HIPERVINCULO(1)', archived_at = now() "
-            "WHERE id = :i"
+            "UPDATE patient SET full_name = '=HIPERVINCULO(1)', archived_at = now() WHERE id = :i"
         ),
         {"i": agenda.patient.id},
     )

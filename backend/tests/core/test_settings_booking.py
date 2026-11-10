@@ -36,7 +36,7 @@ def test_defaults_del_contrato_de_d14() -> None:
 
 
 def test_el_rate_limit_global_en_memoria_no_se_toca() -> None:
-    assert _settings().BOOKING_RATE_LIMIT == "30/minute"
+    assert _settings().BOOKING_RATE_LIMIT == "300/minute"
 
 
 @pytest.mark.parametrize("nombre", RATE_LIMITS)

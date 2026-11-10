@@ -172,8 +172,7 @@ def test_upgrade_crea_los_objetos_de_auth_de_c03(temp_database: str) -> None:
         "ix_auth_event_user_id_created_at",
     } <= _indices(temp_database)
     triggers = fetch_rows(
-        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'auth_event'::regclass "
-        "AND NOT tgisinternal",
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'auth_event'::regclass AND NOT tgisinternal",
         temp_database,
     )
     assert {str(r[0]) for r in triggers} == {"trg_auth_event_no_mutate"}
@@ -263,8 +262,7 @@ def test_upgrade_crea_los_objetos_de_fusion_de_c06(temp_database: str) -> None:
     constraints = {
         str(r[0]): bool(r[1])
         for r in fetch_rows(
-            "SELECT conname, convalidated FROM pg_constraint "
-            "WHERE conrelid = 'patient'::regclass",
+            "SELECT conname, convalidated FROM pg_constraint WHERE conrelid = 'patient'::regclass",
             temp_database,
         )
     }

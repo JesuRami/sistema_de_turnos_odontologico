@@ -39,9 +39,7 @@ def set_refresh_cookie(response: Response, settings: Settings, value: str) -> No
 def cleared_cookie_header(settings: Settings) -> str:
     """Header `Set-Cookie` que borra el refresh (para respuestas de error)."""
     secure = "; Secure" if settings.ENV == "prod" else ""
-    return (
-        f"{refresh_cookie_name(settings)}=; Max-Age=0; Path=/; " f"HttpOnly; SameSite=lax{secure}"
-    )
+    return f"{refresh_cookie_name(settings)}=; Max-Age=0; Path=/; HttpOnly; SameSite=lax{secure}"
 
 
 def clear_refresh_cookie(response: Response, settings: Settings) -> None:

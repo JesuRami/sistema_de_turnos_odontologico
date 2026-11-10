@@ -285,8 +285,8 @@ async def test_si_reconcile_falla_la_cancelacion_se_revierte(
     monkeypatch.setattr("app.modules.appointments.states.reconcile", _falla)
 
     async with client_for(app) as client:
-        with pytest.raises(RuntimeError):
-            await client.patch(managed.url, json={"action": "cancel", "reason": "viaje"})
+        response = await client.patch(managed.url, json={"action": "cancel", "reason": "viaje"})
+        assert response.status_code == 500
 
     async with AsyncSession(committed_engine) as session:
         assert (await reload(session, turno_id)).status is AppointmentStatus.PENDING

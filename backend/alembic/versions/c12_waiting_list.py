@@ -373,7 +373,7 @@ def upgrade() -> None:
     _add_validated(
         "reminder_job",
         "fk_reminder_job_offer",
-        "FOREIGN KEY (clinic_id, waitlist_offer_id) " "REFERENCES waitlist_offer (clinic_id, id)",
+        "FOREIGN KEY (clinic_id, waitlist_offer_id) REFERENCES waitlist_offer (clinic_id, id)",
     )
     _add_validated(
         "reminder_job",

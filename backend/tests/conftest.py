@@ -179,7 +179,7 @@ async def redis_client(settings: Settings) -> AsyncIterator[Redis]:
     except Exception:
         await client.aclose()
         pytest.skip(
-            f"Redis no disponible en {settings.REDIS_URL} " "(levantar compose o correr en CI)"
+            f"Redis no disponible en {settings.REDIS_URL} (levantar compose o correr en CI)"
         )
     await client.flushdb()
     try:

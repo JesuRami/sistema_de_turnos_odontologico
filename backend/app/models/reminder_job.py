@@ -44,6 +44,23 @@ class ReminderJob(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ForeignKeyConstraint(
             ["clinic_id", "appointment_id"], ["appointment.clinic_id", "appointment.id"]
         ),
+        # C-12 (D2): un job es de un turno o de una oferta de la lista de espera, nunca ambos.
+        ForeignKeyConstraint(
+            ["clinic_id", "waitlist_offer_id"],
+            ["waitlist_offer.clinic_id", "waitlist_offer.id"],
+            name="fk_reminder_job_offer",
+        ),
+        CheckConstraint("num_nonnulls(appointment_id, waitlist_offer_id) = 1", name="one_target"),
+        CheckConstraint(
+            "(step = 'waitlist_offer') = (waitlist_offer_id IS NOT NULL)", name="offer_step"
+        ),
+        Index(
+            "uq_reminder_job_offer_channel",
+            "waitlist_offer_id",
+            "channel",
+            unique=True,
+            postgresql_where=text("waitlist_offer_id IS NOT NULL"),
+        ),
         ForeignKeyConstraint(
             ["clinic_id", "template_id"],
             ["notification_template.clinic_id", "notification_template.id"],
@@ -87,7 +104,9 @@ class ReminderJob(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ),
     )
 
-    appointment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # NULL en un job de oferta (C-12, D2): entonces `waitlist_offer_id` está.
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    waitlist_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     step: Mapped[str] = mapped_column(Text, nullable=False)
     channel: Mapped[ReminderChannel] = mapped_column(REMINDER_CHANNEL, nullable=False)
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

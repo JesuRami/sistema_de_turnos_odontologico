@@ -42,6 +42,12 @@ def test_claves_requeridas_presentes_en_ejemplo() -> None:
         "MANAGE_TOKEN_TTL_H",
         "FRONTEND_PUBLIC_URL",
         "CORS_ORIGINS",
+        "WAITLIST_PUBLIC_IP_RATE_LIMIT",
+        "WAITLIST_PUBLIC_SLUG_RATE_LIMIT",
+        "WAITLIST_MIN_LEAD_MINUTES",
+        "WAITLIST_MIN_OFFER_WINDOW_MINUTES",
+        "WAITLIST_MAX_CONSECUTIVE_EXPIRED",
+        "WAITLIST_TICK_BATCH_SIZE",
     ):
         assert expected in keys, f"{expected} falta en .env.example"
     assert any(k.startswith("META_") for k in keys), "faltan claves META_*"

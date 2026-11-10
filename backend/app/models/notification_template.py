@@ -12,7 +12,8 @@ from app.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKeyMix
 from app.models.enums import ReminderChannel
 
 REMINDER_CHANNEL = pg_enum(ReminderChannel, "reminder_channel")
-STEP_FORMAT_SQL = "step ~ '^(created|t_[0-9]+h)$'"
+# C-12: `waitlist_offer` es el paso del envío de una oferta de la lista de espera.
+STEP_FORMAT_SQL = "step ~ '^(created|waitlist_offer|t_[0-9]+h)$'"
 
 
 class NotificationTemplate(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):

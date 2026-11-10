@@ -144,3 +144,11 @@ async def apply_transition(
     )
     # C-09 (D3): cancelar, confirmar o registrar asistencia ajusta los jobs en esta transacción.
     await reconcile(session, appointment, now=now)
+    if target is S.CANCELLED:
+        # C-12 (D3, RN-CX-03): el hueco liberado se ofrece a la lista de espera en esta misma
+        # transacción; si la evaluación falla, la cancelación revierte. Import diferido: la lista
+        # de espera depende de este módulo para aceptar ofertas.
+        from app.core.settings import get_settings
+        from app.modules.waiting_list.engine import evaluate_cancelled
+
+        await evaluate_cancelled(session, appointment, now=now, settings=get_settings())

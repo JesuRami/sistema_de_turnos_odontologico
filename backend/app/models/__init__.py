@@ -11,6 +11,7 @@ from app.models.clinic import Clinic
 from app.models.consent import Consent
 from app.models.delivery_event import DeliveryEvent
 from app.models.enums import (
+    ACTIVE_ENTRY_STATUSES,
     VIGENT_STATUSES,
     ActorType,
     AppointmentEventType,
@@ -28,6 +29,9 @@ from app.models.enums import (
     ReminderReason,
     ReminderStatus,
     UserRole,
+    WaitingListStatus,
+    WaitlistEventType,
+    WaitlistOfferStatus,
     WhatsAppIntent,
     WhatsAppReplyKind,
     WhatsAppReplyStatus,
@@ -40,10 +44,12 @@ from app.models.reminder_job import ReminderJob
 from app.models.reminder_manual_resend import ReminderManualResend
 from app.models.schedule_rule import ScheduleRule
 from app.models.user import User
+from app.models.waiting_list import WaitingListEntry, WaitlistEvent, WaitlistOffer
 from app.models.whatsapp_inbound import WhatsAppInbound
 from app.models.whatsapp_outbound_reply import WhatsAppOutboundReply
 
 __all__ = [
+    "ACTIVE_ENTRY_STATUSES",
     "VIGENT_STATUSES",
     "ActorType",
     "AgendaConfigEvent",
@@ -79,6 +85,12 @@ __all__ = [
     "ScheduleRule",
     "User",
     "UserRole",
+    "WaitingListEntry",
+    "WaitingListStatus",
+    "WaitlistEvent",
+    "WaitlistEventType",
+    "WaitlistOffer",
+    "WaitlistOfferStatus",
     "WhatsAppInbound",
     "WhatsAppIntent",
     "WhatsAppOutboundReply",

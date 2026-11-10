@@ -31,9 +31,11 @@ from app.modules.reports.schemas import (
     AuditPage,
     CancellationsReport,
     OccupancyReport,
+    WaitlistReport,
     WhatsAppReport,
 )
 from app.modules.reports.service import ReportsService
+from app.modules.reports.waitlist import waitlist_report
 from app.modules.reports.whatsapp import whatsapp_report
 
 router = APIRouter(prefix="/api", tags=["reports"])
@@ -183,6 +185,46 @@ async def whatsapp(
                 for r in informe.rows
             ]
             + [["total", "", t.sent, t.delivered, t.read, t.failed, t.cost_usd]],
+        )
+    return informe
+
+
+@router.get(
+    "/reports/waitlist",
+    response_model=WaitlistReport,
+    dependencies=[Depends(only_params("from", "to", "format"))],
+)
+async def waitlist(
+    principal: AdminDep,
+    session: DbSession,
+    desde: Desde,
+    hasta: Hasta,
+    formato: Annotated[str, Query(alias="format")] = "json",
+) -> WaitlistReport | Response:
+    """Conversión de la lista de espera por profesional (C-12, US-050), sobre `waitlist_event`."""
+    fmt = _format(formato)
+    ventana = await ReportsService(session, principal.clinic_id).window(desde, hasta)
+    informe = await waitlist_report(session, principal.clinic_id, ventana)
+    if fmt == "csv":
+        columnas = [
+            "created",
+            "auto",
+            "manual",
+            "accepted",
+            "declined",
+            "expired",
+            "cancelled",
+            "conversion_pct",
+        ]
+        t = informe.totals
+        return csv_response(
+            f"lista-de-espera-{desde}-{hasta}.csv",
+            ["professional_id", "professional_name", *columnas],
+            [
+                [r.professional_id, r.professional_name, *(getattr(r, c) for c in columnas)]
+                for r in informe.rows
+            ]
+            + [["total", "", *(getattr(t, c) for c in columnas)]],
         )
     return informe
 

@@ -31,6 +31,8 @@ from app.models import (
     ReminderJob,
     ReminderReason,
     ReminderStatus,
+    WaitingListEntry,
+    WaitlistOffer,
 )
 from app.modules.notifications.payload import StatusEvent
 from app.modules.reminders.consent import ConsentService
@@ -93,6 +95,9 @@ async def apply_status(session: AsyncSession, status: StatusEvent, *, now: datet
 
 
 async def _escalate(session: AsyncSession, job: ReminderJob, *, now: datetime) -> None:
+    if job.waitlist_offer_id is not None:
+        await _escalate_offer(session, job, now=now)
+        return
     fila = (
         await session.execute(
             select(Appointment.starts_at, Patient.id, Patient.email)
@@ -102,6 +107,42 @@ async def _escalate(session: AsyncSession, job: ReminderJob, *, now: datetime) -
                 & (Patient.id == Appointment.patient_id),
             )
             .where(Appointment.clinic_id == job.clinic_id, Appointment.id == job.appointment_id)
+        )
+    ).one()
+    email = (fila.email or "").strip() or None
+    bloqueado = (
+        await ConsentService(session).current(job.clinic_id, fila.id, ReminderChannel.EMAIL)
+        is ConsentStatus.OPT_OUT
+    )
+    await escalate_to_email(
+        session,
+        job,
+        starts_at=fila.starts_at,
+        patient_email=email,
+        email_blocked=bloqueado,
+        now=now,
+    )
+
+
+async def _escalate_offer(session: AsyncSession, job: ReminderJob, *, now: datetime) -> None:
+    """Falla de Meta en el envío de una oferta (C-12, D2): mismo escalado a email."""
+    fila = (
+        await session.execute(
+            select(WaitlistOffer.starts_at, Patient.id, Patient.email)
+            .join(
+                WaitingListEntry,
+                (WaitingListEntry.clinic_id == WaitlistOffer.clinic_id)
+                & (WaitingListEntry.id == WaitlistOffer.entry_id),
+            )
+            .join(
+                Patient,
+                (Patient.clinic_id == WaitingListEntry.clinic_id)
+                & (Patient.id == WaitingListEntry.patient_id),
+            )
+            .where(
+                WaitlistOffer.clinic_id == job.clinic_id,
+                WaitlistOffer.id == job.waitlist_offer_id,
+            )
         )
     ).one()
     email = (fila.email or "").strip() or None

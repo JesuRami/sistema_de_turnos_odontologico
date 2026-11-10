@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     PUBLIC_BOOKING_HORIZON_DAYS: int = Field(default=60, ge=1)
     PRIVACY_POLICY_VERSION: str = "2026-11-placeholder"
     BOT_GUARD: str = "noop"
+    # Lista de espera (C-12, D3/D4/D7): anotación pública con cupos propios, ventana mínima de
+    # una oferta automática, vencimientos consecutivos tolerados y tamaño de lote del tick.
+    WAITLIST_PUBLIC_IP_RATE_LIMIT: str = "5/3600s"
+    WAITLIST_PUBLIC_SLUG_RATE_LIMIT: str = "100/3600s"
+    WAITLIST_MIN_LEAD_MINUTES: int = Field(default=60, ge=0)
+    WAITLIST_MIN_OFFER_WINDOW_MINUTES: int = Field(default=15, ge=1)
+    WAITLIST_MAX_CONSECUTIVE_EXPIRED: int = Field(default=3, ge=1)
+    WAITLIST_TICK_BATCH_SIZE: int = Field(default=100, ge=1, le=1000)
     FRONTEND_PUBLIC_URL: str = "http://localhost:5173"
     CORS_ORIGINS: str = "http://localhost:5173"
 
@@ -160,6 +168,8 @@ class Settings(BaseSettings):
         "MANAGE_READ_TOKEN_RATE_LIMIT",
         "MANAGE_WRITE_IP_RATE_LIMIT",
         "MANAGE_WRITE_TOKEN_RATE_LIMIT",
+        "WAITLIST_PUBLIC_IP_RATE_LIMIT",
+        "WAITLIST_PUBLIC_SLUG_RATE_LIMIT",
     )
     @classmethod
     def _validar_rate_limit(cls, valor: str) -> str:

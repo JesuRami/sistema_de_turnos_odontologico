@@ -65,6 +65,7 @@ solo por entorno (regla 6), todas sintéticas:
 | `E2E_PASSWORD` | clave definitiva que el E2E fija para el admin y la recepcionista |
 | `E2E_API` / `E2E_BASE_URL` | opcionales: API y URL de la SPA (usar `http://127.0.0.1:8000` en Windows: `localhost` resuelve a IPv6 y el proxy de Vite se cuelga) |
 | `E2E_CLINIC_SLUG` | opcional: slug de la clínica con reserva habilitada (default `clinica-demo`) |
+| `E2E_MANAGE_LINK_SECRET` | igual a `MANAGE_LINK_SECRET` del stack: `waitlist.spec.ts` firma con él el link de la oferta (C-12), que en producción viaja por WhatsApp/email |
 
 La clínica del seed debe tener la reserva pública habilitada: sembrarla con `SEED_BOOKING_DEMO=true`
 y, en la API de pruebas, subir `PUBLIC_BOOKING_IP_RATE_LIMIT` (el default de 10 reservas/h/IP se agota

@@ -55,6 +55,9 @@ from app.models import (
     ReminderJob,
     ReminderReason,
     ReminderStatus,
+    WaitingListEntry,
+    WaitlistOffer,
+    WaitlistOfferStatus,
 )
 from app.modules.notifications.replies import run_replies
 from app.modules.reminders.jobs import add_event, escalate_to_email
@@ -63,6 +66,7 @@ from app.modules.reminders.scheduling import reconcile
 from app.modules.reminders.senders.base import OutboundMessage, ReminderSender, SendError
 from app.modules.reminders.senders.render import MissingVariable, format_date, format_time, render
 from app.modules.reminders.templates import param_order_of, whatsapp_buttons
+from app.modules.waiting_list.links import build_offer_url
 
 logger = logging.getLogger("reminders.dispatch")
 
@@ -97,7 +101,8 @@ class Ready:
 
     job_id: uuid.UUID
     clinic_id: uuid.UUID
-    appointment_id: uuid.UUID
+    # Exactamente uno de los dos (C-12, D2): recordatorio de un turno u oferta de lista de espera.
+    appointment_id: uuid.UUID | None
     channel: ReminderChannel
     step: str
     attempts: int
@@ -116,6 +121,9 @@ class Ready:
     sender_id: str | None = None
     # El envío proviene de un reenvío manual de recepción (C-11): el evento `sent` lo marca.
     manual: bool = False
+    # Oferta de la lista de espera (C-12): su id y su vencimiento (`{{vence}}`).
+    waitlist_offer_id: uuid.UUID | None = None
+    expires_at: datetime | None = None
 
     def __repr__(self) -> str:
         return f"Ready(job={self.job_id}, channel={self.channel.value}, step={self.step})"
@@ -198,20 +206,90 @@ async def _recover_leases(
 # ------------------------------------------------------------------------------ reclamo
 
 
-def _context_query(job_ids: Sequence[uuid.UUID]) -> Any:
-    """Contexto de los jobs en UNA consulta, siempre unida por `clinic_id` (regla 4)."""
-    email_consent = (
+def _email_consent(patient_id: Any, *correlate: Any) -> Any:
+    """Último estado del consentimiento de email del paciente (subconsulta correlacionada)."""
+    return (
         select(Consent.status)
         .where(
             Consent.clinic_id == ReminderJob.clinic_id,
-            Consent.patient_id == Appointment.patient_id,
+            Consent.patient_id == patient_id,
             Consent.channel == ReminderChannel.EMAIL,
         )
         .order_by(Consent.changed_at.desc(), Consent.id)
         .limit(1)
-        .correlate(ReminderJob, Appointment)
+        .correlate(ReminderJob, *correlate)
         .scalar_subquery()
     )
+
+
+def _template_join() -> Any:
+    return and_(
+        NotificationTemplate.clinic_id == ReminderJob.clinic_id,
+        NotificationTemplate.channel == ReminderJob.channel,
+        NotificationTemplate.step == ReminderJob.step,
+    )
+
+
+def _offer_context_query(job_ids: Sequence[uuid.UUID]) -> Any:
+    """Contexto de los jobs de oferta (C-12, D2): oferta → entrada → paciente, por `clinic_id`."""
+    return (
+        select(
+            ReminderJob.id.label("job_id"),
+            WaitlistOffer.status.label("offer_status"),
+            WaitlistOffer.starts_at,
+            WaitlistOffer.expires_at,
+            Patient.full_name,
+            Patient.phone_e164,
+            Patient.email,
+            Patient.whatsapp_opt_in,
+            Professional.display_name.label("professional_name"),
+            Clinic.name.label("clinic_name"),
+            Clinic.timezone,
+            Clinic.whatsapp_phone_number_id.label("clinic_whatsapp_number"),
+            NotificationTemplate.id.label("template_id"),
+            NotificationTemplate.meta_template_name,
+            NotificationTemplate.body_preview,
+            NotificationTemplate.active.label("template_active"),
+            _email_consent(WaitingListEntry.patient_id, WaitingListEntry).label("email_consent"),
+        )
+        .select_from(ReminderJob)
+        .join(
+            WaitlistOffer,
+            and_(
+                WaitlistOffer.clinic_id == ReminderJob.clinic_id,
+                WaitlistOffer.id == ReminderJob.waitlist_offer_id,
+            ),
+        )
+        .join(
+            WaitingListEntry,
+            and_(
+                WaitingListEntry.clinic_id == WaitlistOffer.clinic_id,
+                WaitingListEntry.id == WaitlistOffer.entry_id,
+            ),
+        )
+        .join(
+            Patient,
+            and_(
+                Patient.clinic_id == WaitingListEntry.clinic_id,
+                Patient.id == WaitingListEntry.patient_id,
+            ),
+        )
+        .join(
+            Professional,
+            and_(
+                Professional.clinic_id == WaitlistOffer.clinic_id,
+                Professional.id == WaitlistOffer.professional_id,
+            ),
+        )
+        .join(Clinic, Clinic.id == ReminderJob.clinic_id)
+        .outerjoin(NotificationTemplate, _template_join())
+        .where(ReminderJob.id.in_(list(job_ids)))
+    )
+
+
+def _context_query(job_ids: Sequence[uuid.UUID]) -> Any:
+    """Contexto de los jobs en UNA consulta, siempre unida por `clinic_id` (regla 4)."""
+    email_consent = _email_consent(Appointment.patient_id, Appointment)
     return (
         select(
             ReminderJob.id.label("job_id"),
@@ -252,14 +330,7 @@ def _context_query(job_ids: Sequence[uuid.UUID]) -> Any:
             ),
         )
         .join(Clinic, Clinic.id == ReminderJob.clinic_id)
-        .outerjoin(
-            NotificationTemplate,
-            and_(
-                NotificationTemplate.clinic_id == ReminderJob.clinic_id,
-                NotificationTemplate.channel == ReminderJob.channel,
-                NotificationTemplate.step == ReminderJob.step,
-            ),
-        )
+        .outerjoin(NotificationTemplate, _template_join())
         .where(ReminderJob.id.in_(list(job_ids)))
     )
 
@@ -326,16 +397,34 @@ async def _claim_batch(
         )
         if not jobs:
             return Claimed(0, [])
-        contexto = {
-            fila.job_id: fila
-            for fila in (await session.execute(_context_query([j.id for j in jobs]))).all()
-        }
+        de_turno = [j.id for j in jobs if j.appointment_id is not None]
+        de_oferta = [j.id for j in jobs if j.waitlist_offer_id is not None]
+        contexto: dict[uuid.UUID, Any] = {}
+        if de_turno:
+            filas = (await session.execute(_context_query(de_turno))).all()
+            contexto |= {fila.job_id: fila for fila in filas}
+        if de_oferta:
+            filas = (await session.execute(_offer_context_query(de_oferta))).all()
+            contexto |= {fila.job_id: fila for fila in filas}
         ready: list[Ready] = []
         for job in jobs:
             ctx = contexto[job.id]
             email = (ctx.email or "").strip() or None
             email_blocked = ctx.email_consent is ConsentStatus.OPT_OUT
-            if ctx.appointment_status not in _ACTIVE:
+            es_oferta = job.waitlist_offer_id is not None
+            if es_oferta and (
+                ctx.offer_status is not WaitlistOfferStatus.PENDING or now >= ctx.expires_at
+            ):
+                # C-12: la oferta ya no se puede tomar; no se avisa de algo cerrado.
+                _close(
+                    session,
+                    job,
+                    ReminderStatus.CANCELLED,
+                    ReminderReason.OFFER_CLOSED,
+                    DeliveryEventType.CANCELLED,
+                )
+                stats.cancelled += 1
+            elif not es_oferta and ctx.appointment_status not in _ACTIVE:
                 _close(
                     session,
                     job,
@@ -344,7 +433,7 @@ async def _claim_batch(
                     DeliveryEventType.CANCELLED,
                 )
                 stats.cancelled += 1
-            elif now >= ctx.starts_at:
+            elif not es_oferta and now >= ctx.starts_at:
                 _close(
                     session,
                     job,
@@ -353,7 +442,7 @@ async def _claim_batch(
                     DeliveryEventType.SKIPPED,
                 )
                 stats.skipped += 1
-            elif ctx.starts_at != job.starts_at_snapshot:
+            elif not es_oferta and ctx.starts_at != job.starts_at_snapshot:
                 # Un camino de escritura no reconcilió: se recalcula la secuencia, no se envía.
                 turno = await session.get(Appointment, ctx.appointment_id)
                 if turno is not None:
@@ -445,6 +534,8 @@ async def _claim_batch(
                         email_blocked=email_blocked,
                         sender_id=ctx.clinic_whatsapp_number or compartido,
                         manual=job.manual_resend_at is not None,
+                        waitlist_offer_id=job.waitlist_offer_id,
+                        expires_at=ctx.expires_at if es_oferta else None,
                     )
                 )
         await session.flush()
@@ -463,8 +554,16 @@ def _build_message(ready: Ready, settings: Settings, now: datetime) -> OutboundM
         "profesional": ready.professional_name,
         "fecha": format_date(ready.starts_at, ready.tz),
         "hora": format_time(ready.starts_at, ready.tz),
-        "link": build_manage_url(settings, ready.appointment_id),
     }
+    if ready.waitlist_offer_id is not None and ready.expires_at is not None:
+        # C-12 (D2): link de la oferta (nunca el de gestión de un turno) y su vencimiento.
+        params["link"] = build_offer_url(settings, ready.waitlist_offer_id)
+        params["vence"] = format_time(ready.expires_at, ready.tz)
+        asunto = f"Se liberó un turno en {ready.clinic_name}"
+    else:
+        assert ready.appointment_id is not None
+        params["link"] = build_manage_url(settings, ready.appointment_id)
+        asunto = f"Recordatorio de tu turno en {ready.clinic_name}"
     # Todo recordatorio proactivo sale como plantilla aunque la ventana de 24 h esté abierta: el
     # texto libre es solo para responder a un entrante (outbox de C-10, D8).
     es_whatsapp = ready.channel is ReminderChannel.WHATSAPP
@@ -475,11 +574,7 @@ def _build_message(ready: Ready, settings: Settings, now: datetime) -> OutboundM
         locale="es_AR",
         params=params,
         body=render(ready.body_preview, params),
-        subject=(
-            f"Recordatorio de tu turno en {ready.clinic_name}"
-            if ready.channel is ReminderChannel.EMAIL
-            else None
-        ),
+        subject=asunto if ready.channel is ReminderChannel.EMAIL else None,
         sender_id=ready.sender_id if es_whatsapp else None,
         param_order=param_order_of(ready.body_preview) if es_whatsapp else (),
         buttons=whatsapp_buttons(ready.step) if es_whatsapp else (),
@@ -488,6 +583,8 @@ def _build_message(ready: Ready, settings: Settings, now: datetime) -> OutboundM
 
 async def _recheck(factory: SessionFactory, ready: Ready, now: datetime) -> bool:
     """Último chequeo justo antes de enviar; devuelve `False` si el job ya no debe salir."""
+    if ready.waitlist_offer_id is not None:
+        return await _recheck_offer(factory, ready, now)
     async with factory() as session, session.begin():
         fila = (
             await session.execute(
@@ -545,6 +642,45 @@ async def _recheck(factory: SessionFactory, ready: Ready, now: datetime) -> bool
         )
         if cerrado.rowcount:  # type: ignore[attr-defined]
             add_event(session, ready.job_id, ready.clinic_id, evento, {"reason": motivo.value})
+        return False
+
+
+async def _recheck_offer(factory: SessionFactory, ready: Ready, now: datetime) -> bool:
+    """Oferta todavía `pending` y sin vencer (C-12, D2); si no, el job queda `offer_closed`."""
+    async with factory() as session, session.begin():
+        fila = (
+            await session.execute(
+                select(WaitlistOffer.status, WaitlistOffer.expires_at).where(
+                    WaitlistOffer.clinic_id == ready.clinic_id,
+                    WaitlistOffer.id == ready.waitlist_offer_id,
+                )
+            )
+        ).one_or_none()
+        if (
+            fila is not None
+            and fila.status is WaitlistOfferStatus.PENDING
+            and now < fila.expires_at
+        ):
+            return True
+        motivo = ReminderReason.OFFER_CLOSED
+        cerrado = await session.execute(
+            update(ReminderJob)
+            .where(
+                ReminderJob.id == ready.job_id,
+                ReminderJob.clinic_id == ready.clinic_id,
+                ReminderJob.status == ReminderStatus.SENDING,
+            )
+            .values(status=ReminderStatus.CANCELLED, reason=motivo.value, manual_resend_at=None)
+            .execution_options(synchronize_session=False)
+        )
+        if cerrado.rowcount:  # type: ignore[attr-defined]
+            add_event(
+                session,
+                ready.job_id,
+                ready.clinic_id,
+                DeliveryEventType.CANCELLED,
+                {"reason": motivo.value},
+            )
         return False
 
 

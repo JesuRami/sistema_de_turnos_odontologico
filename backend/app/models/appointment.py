@@ -71,6 +71,11 @@ class Appointment(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         ),
         # RN-SB-01: un turno online nunca es sobreturno, también en la base.
         CheckConstraint("origin <> 'online' OR NOT is_overbooking", name="online_not_overbooking"),
+        # C-12 (RN-LE-05): el turno de la lista de espera no es sobreturno ni lleva token aleatorio.
+        CheckConstraint(
+            "origin <> 'waitlist' OR (NOT is_overbooking AND manage_token_hash IS NULL)",
+            name="waitlist_plain",
+        ),
         CheckConstraint(
             "(status = 'cancelled') = (cancelled_at IS NOT NULL) "
             "AND (status = 'cancelled') = (cancellation_reason IS NOT NULL)",

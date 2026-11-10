@@ -24,6 +24,9 @@ TABLAS = {
     "whatsapp_inbound",
     "whatsapp_outbound_reply",
     "reminder_manual_resend",
+    "waiting_list_entry",
+    "waitlist_offer",
+    "waitlist_event",
 }
 INDICES = {
     "uq_clinic_slug",
@@ -61,6 +64,12 @@ INDICES = {
     "ix_reminder_job_failed",
     "ix_reminder_manual_resend_job",
     "ix_reminder_manual_resend_appointment",
+    "uq_waiting_list_entry_active",
+    "ix_waiting_list_entry_queue",
+    "uq_waitlist_offer_pending",
+    "ix_waitlist_offer_due",
+    "ix_waitlist_event_report",
+    "uq_reminder_job_offer_channel",
 }
 ENUMS = {
     "user_role",
@@ -81,6 +90,9 @@ ENUMS = {
     "whatsapp_intent",
     "whatsapp_reply_kind",
     "whatsapp_reply_status",
+    "waiting_list_status",
+    "waitlist_offer_status",
+    "waitlist_event_type",
 }
 
 
@@ -632,11 +644,12 @@ def test_backfill_de_c09_registra_el_consentimiento_legacy_y_las_plantillas(
         "Paciente Ficticio Con Opt-in": True,
         "Paciente Ficticio Sin Opt-in": False,
     }
+    # C-09 siembra sus cuatro pasos por canal y C-12 su paso de oferta: el catálogo completo.
     por_clinica = fetch_rows(
         "SELECT count(*) FROM notification_template GROUP BY clinic_id", temp_database
     )
     assert sorted(por_clinica) == [(len(DEFAULT_TEMPLATES),), (len(DEFAULT_TEMPLATES),)]
-    assert len(DEFAULT_TEMPLATES) == 8
+    assert len(DEFAULT_TEMPLATES) == 10
 
 
 # ------------------------------------------------------------------ C-10 whatsapp-webhook
@@ -771,5 +784,117 @@ def test_ciclo_de_c11_con_datos_de_c10(temp_database: str) -> None:
         == []
     )
     assert fetch_rows("SELECT count(*) FROM reminder_job", temp_database) == [(1,)]
+
+    command.upgrade(cfg, "head")
+
+
+def test_ciclo_de_c12_con_datos_de_c11(temp_database: str) -> None:
+    """Con datos sintéticos de C-11, `upgrade` → `downgrade c11` → `upgrade` funciona (C-12, 1.4).
+
+    Regla 11: el índice único de jobs de oferta `CONCURRENTLY` queda válido y los constraints
+    nuevos sobre tablas con filas quedan validados. El downgrade elimina tablas, columnas y jobs de
+    oferta, conserva los jobs de turnos y deja los valores agregados a enums existentes.
+    """
+    cfg = alembic_config()
+    command.upgrade(cfg, "c11_reminder_timeline")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia', 'clinica-c12-ciclo')", ()),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164, whatsapp_opt_in) "
+            "SELECT id, 'Paciente Ficticio', '+5491155550112', true FROM clinic",
+            (),
+        ),
+        (
+            "INSERT INTO professional (clinic_id, display_name) "
+            "SELECT id, 'Profesional Ficticio' FROM clinic",
+            (),
+        ),
+        ("INSERT INTO chair (clinic_id, name) SELECT id, 'Sillón Ficticio' FROM clinic", ()),
+        (
+            "INSERT INTO appointment (clinic_id, patient_id, professional_id, chair_id, "
+            "starts_at, ends_at, occupied_until, status, origin, manage_token_hash) "
+            "SELECT c.id, p.id, pr.id, ch.id, '2030-01-14 13:00+00', '2030-01-14 13:30+00', "
+            "'2030-01-14 13:30+00', 'pending', 'online', decode(repeat('ab', 32), 'hex') "
+            "FROM clinic c JOIN patient p ON p.clinic_id = c.id "
+            "JOIN professional pr ON pr.clinic_id = c.id JOIN chair ch ON ch.clinic_id = c.id",
+            (),
+        ),
+        (
+            "INSERT INTO reminder_job (clinic_id, appointment_id, step, channel, scheduled_for, "
+            "available_at, starts_at_snapshot, status) "
+            "SELECT clinic_id, id, 't_24h', 'whatsapp', starts_at - interval '24 hours', "
+            "starts_at - interval '24 hours', starts_at, 'scheduled' FROM appointment",
+            (),
+        ),
+    )
+
+    command.upgrade(cfg, "head")
+    for tabla in ("waiting_list_entry", "waitlist_offer", "waitlist_event"):
+        assert tabla in _tablas(temp_database)
+    # Backfill: la clínica previa a C-12 recibe las dos plantillas de oferta (WhatsApp y email).
+    assert fetch_rows(
+        "SELECT count(*) FROM notification_template WHERE step = 'waitlist_offer'",
+        temp_database,
+    ) == [(2,)]
+    assert fetch_rows(
+        "SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid "
+        "WHERE c.relname = 'uq_reminder_job_offer_channel'",
+        temp_database,
+    ) == [(True,)]
+    assert (
+        fetch_rows(
+            "SELECT conname, convalidated FROM pg_constraint WHERE conname IN ("
+            "'ck_appointment_waitlist_plain', 'fk_reminder_job_offer', "
+            "'ck_reminder_job_one_target', 'ck_reminder_job_offer_step', "
+            "'ck_reminder_job_step_format', "
+            "'ck_notification_template_step_format', 'fk_whatsapp_inbound_offer', "
+            "'fk_whatsapp_outbound_reply_offer') AND NOT convalidated",
+            temp_database,
+        )
+        == []
+    )
+    # Una oferta con su job, para probar que el downgrade los quita.
+    _ejecutar(
+        temp_database,
+        (
+            "INSERT INTO waiting_list_entry (clinic_id, patient_id, date_from, date_to, source) "
+            "SELECT clinic_id, id, '2030-01-01', '2030-01-31', 'reception' FROM patient",
+            (),
+        ),
+        (
+            "INSERT INTO waitlist_offer (clinic_id, entry_id, professional_id, chair_id, "
+            "starts_at, ends_at, expires_at, mode) "
+            "SELECT e.clinic_id, e.id, pr.id, ch.id, '2030-01-15 13:00+00', "
+            "'2030-01-15 13:30+00', '2030-01-15 12:00+00', 'auto' FROM waiting_list_entry e "
+            "JOIN professional pr ON pr.clinic_id = e.clinic_id "
+            "JOIN chair ch ON ch.clinic_id = e.clinic_id",
+            (),
+        ),
+        (
+            "INSERT INTO reminder_job (clinic_id, waitlist_offer_id, step, channel, "
+            "scheduled_for, available_at, starts_at_snapshot) "
+            "SELECT clinic_id, id, 'waitlist_offer', 'whatsapp', now(), now(), starts_at "
+            "FROM waitlist_offer",
+            (),
+        ),
+    )
+
+    command.downgrade(cfg, "c11_reminder_timeline")
+    for tabla in ("waiting_list_entry", "waitlist_offer", "waitlist_event"):
+        assert tabla not in _tablas(temp_database)
+    assert "uq_reminder_job_offer_channel" not in _indices(temp_database)
+    assert fetch_rows("SELECT count(*) FROM reminder_job", temp_database) == [(1,)]
+    assert fetch_rows(
+        "SELECT is_nullable FROM information_schema.columns "
+        "WHERE table_name = 'reminder_job' AND column_name = 'appointment_id'",
+        temp_database,
+    ) == [("NO",)]
+    # Los valores agregados a enums existentes quedan (PostgreSQL no los quita).
+    assert fetch_rows(
+        "SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "
+        "WHERE t.typname = 'appointment_origin' AND e.enumlabel = 'waitlist'",
+        temp_database,
+    ) == [(1,)]
 
     command.upgrade(cfg, "head")

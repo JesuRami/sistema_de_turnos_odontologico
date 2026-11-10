@@ -15,6 +15,7 @@ import type {
   OccupancyReport,
   Page,
   ReportGroupBy,
+  WaitlistReport,
   WhatsAppReport
 } from "../../shared/api/types";
 
@@ -39,6 +40,7 @@ export const reportKeys = {
   absenteeism: (r: DateRange) => ["reports", "absenteeism", r] as const,
   cancellations: (r: DateRange) => ["reports", "cancellations", r] as const,
   whatsapp: (r: DateRange) => ["reports", "whatsapp", r] as const,
+  waitlist: (r: DateRange) => ["reports", "waitlist", r] as const,
   audit: (f: AuditFilters) => ["reports", "audit", f] as const
 };
 
@@ -105,5 +107,17 @@ export function useAudit(
       }),
     getNextPageParam: (ultima) => ultima.next_cursor,
     enabled: filters !== null
+  });
+}
+
+/** Conversión de la lista de espera por profesional (C-12, D9). */
+export function useWaitlistReport(range: DateRange | null): UseQueryResult<WaitlistReport> {
+  return useQuery({
+    queryKey: range === null ? ["reports", "waitlist", "off"] : reportKeys.waitlist(range),
+    queryFn: () =>
+      apiFetch<WaitlistReport>("/api/reports/waitlist", {
+        query: { from: range?.from, to: range?.to }
+      }),
+    enabled: range !== null
   });
 }

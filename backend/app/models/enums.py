@@ -72,6 +72,8 @@ class AppointmentOrigin(enum.StrEnum):
 
     RECEPTION = "reception"
     ONLINE = "online"
+    # C-12: creado al aceptar una oferta de la lista de espera (nace `confirmed`).
+    WAITLIST = "waitlist"
 
 
 class CancellationReason(enum.StrEnum):
@@ -144,6 +146,8 @@ class ReminderReason(enum.StrEnum):
     PROVIDER_REJECTED = "provider_rejected"
     SEND_FAILED = "send_failed"
     LEASE_EXPIRED = "lease_expired"
+    # C-12: la oferta del job ya no está pendiente o venció.
+    OFFER_CLOSED = "offer_closed"
 
 
 class ConsentStatus(enum.StrEnum):
@@ -183,6 +187,9 @@ class WhatsAppIntent(enum.StrEnum):
     CHANGE = "change"
     STOP = "stop"
     UNKNOWN = "unknown"
+    # C-12 (D8): respuesta a una oferta de la lista de espera.
+    ACCEPT_OFFER = "accept_offer"
+    DECLINE_OFFER = "decline_offer"
 
 
 class WhatsAppReplyKind(enum.StrEnum):
@@ -194,6 +201,12 @@ class WhatsAppReplyKind(enum.StrEnum):
     INACTIVE = "inactive"
     AMBIGUOUS = "ambiguous"
     STOP_ACK = "stop_ack"
+    # C-12 (D8): resultado de responder a una oferta de la lista de espera.
+    OFFER_ACCEPTED = "offer_accepted"
+    OFFER_DECLINED = "offer_declined"
+    OFFER_TAKEN = "offer_taken"
+    OFFER_CLOSED = "offer_closed"
+    OFFER_PATIENT_BUSY = "offer_patient_busy"
 
 
 class WhatsAppReplyStatus(enum.StrEnum):
@@ -206,6 +219,45 @@ class WhatsAppReplyStatus(enum.StrEnum):
     EXPIRED = "expired"
     SKIPPED = "skipped"
 
+
+class WaitingListStatus(enum.StrEnum):
+    """Estado de una entrada de la lista de espera (C-12, KB 04)."""
+
+    WAITING = "waiting"
+    OFFERED = "offered"
+    CONVERTED = "converted"
+    EXPIRED = "expired"
+    WITHDRAWN = "withdrawn"
+
+
+class WaitlistOfferStatus(enum.StrEnum):
+    """Estado de una oferta; `cancelled` (no está en la KB) la cierra sin respuesta del paciente."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
+class WaitlistEventType(enum.StrEnum):
+    """Hecho auditado en `waitlist_event` (append-only, C-12, D9)."""
+
+    ENTRY_CREATED = "entry_created"
+    ENTRY_UPDATED = "entry_updated"
+    ENTRY_PRIORITIZED = "entry_prioritized"
+    ENTRY_UNPRIORITIZED = "entry_unprioritized"
+    ENTRY_WITHDRAWN = "entry_withdrawn"
+    ENTRY_EXPIRED = "entry_expired"
+    ENTRY_CONVERTED = "entry_converted"
+    OFFER_CREATED = "offer_created"
+    OFFER_ACCEPTED = "offer_accepted"
+    OFFER_DECLINED = "offer_declined"
+    OFFER_EXPIRED = "offer_expired"
+    OFFER_CANCELLED = "offer_cancelled"
+
+
+ACTIVE_ENTRY_STATUSES = (WaitingListStatus.WAITING, WaitingListStatus.OFFERED)
 
 # Vigente = ocupa agenda (RN-AG-01); `absent`, `no_show` y `cancelled` liberan el hueco.
 VIGENT_STATUSES = (

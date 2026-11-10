@@ -8,6 +8,7 @@ import {
   useAudit,
   useCancellations,
   useOccupancy,
+  useWaitlistReport,
   useWhatsAppReport,
   type DateRange
 } from "./api";
@@ -423,6 +424,87 @@ export function AuditPanel({
           {consulta.isFetchingNextPage ? "Cargando…" : "Cargar más"}
         </Button>
       )}
+    </div>
+  );
+}
+
+function tasa(valor: number | null): string {
+  return valor === null ? "—" : `${valor.toLocaleString("es-AR")} %`;
+}
+
+/** Conversión de la lista de espera (C-12, US-050): ofertas y resultado por profesional. */
+export function WaitlistPanel({ range }: { range: DateRange }): JSX.Element {
+  const informe = useWaitlistReport(range);
+  const columnas = [
+    "Creadas",
+    "Automáticas",
+    "Manuales",
+    "Aceptadas",
+    "Rechazadas",
+    "Vencidas",
+    "Cerradas",
+    "Conversión"
+  ];
+  return (
+    <div className="space-y-3">
+      <DownloadButton
+        label="Descargar CSV"
+        path="/api/reports/waitlist"
+        query={{ ...range, format: "csv" }}
+        filename={`lista-de-espera-${range.from}-${range.to}.csv`}
+      />
+      <Alert tone="info">
+        Cuenta las ofertas creadas en el período y cómo terminaron. La conversión es aceptadas sobre
+        creadas; una oferta todavía pendiente solo cuenta como creada.
+      </Alert>
+      {informe.isPending && <Loading />}
+      {informe.isError && <Alert>{describeError(informe.error)}</Alert>}
+      {informe.data !== undefined &&
+        (informe.data.rows.length === 0 ? (
+          <Empty>No hay profesionales activos para mostrar.</Empty>
+        ) : (
+          <div className="overflow-x-auto rounded bg-white p-2 shadow-sm">
+            <table className={TABLA}>
+              <caption className="sr-only">Conversión de la lista de espera</caption>
+              <thead>
+                <tr>
+                  <th scope="col" className={TH}>Profesional</th>
+                  {columnas.map((c) => (
+                    <th key={c} scope="col" className={TH}>{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {informe.data.rows.map((f) => (
+                  <tr key={f.professional_id} className="border-t border-dental-600/10">
+                    <th scope="row" className={`${TD} font-normal`}>{f.professional_name}</th>
+                    <td className={TD}>{f.created}</td>
+                    <td className={TD}>{f.auto}</td>
+                    <td className={TD}>{f.manual}</td>
+                    <td className={TD}>{f.accepted}</td>
+                    <td className={TD}>{f.declined}</td>
+                    <td className={TD}>{f.expired}</td>
+                    <td className={TD}>{f.cancelled}</td>
+                    <td className={TD}>{tasa(f.conversion_pct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-dental-600/30 font-medium">
+                  <th scope="row" className={TD}>Total</th>
+                  <td className={TD}>{informe.data.totals.created}</td>
+                  <td className={TD}>{informe.data.totals.auto}</td>
+                  <td className={TD}>{informe.data.totals.manual}</td>
+                  <td className={TD}>{informe.data.totals.accepted}</td>
+                  <td className={TD}>{informe.data.totals.declined}</td>
+                  <td className={TD}>{informe.data.totals.expired}</td>
+                  <td className={TD}>{informe.data.totals.cancelled}</td>
+                  <td className={TD}>{tasa(informe.data.totals.conversion_pct)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ))}
     </div>
   );
 }

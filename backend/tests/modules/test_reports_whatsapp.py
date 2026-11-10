@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.agenda_helpers import Staff, make_staff
 from tests.factories import make_appointment, make_patient
+from tests.waitlist_helpers import make_entry, make_offer
 
 pytestmark = pytest.mark.integration
 
@@ -147,7 +148,7 @@ async def test_pasos_y_canales_sin_envios_aparecen_en_cero(
     claves = [(f["step"], f["channel"]) for f in cuerpo["rows"]]
     assert claves == [
         (paso, canal)
-        for paso in ("created", "t_72h", "t_24h", "t_3h")
+        for paso in ("created", "t_72h", "t_24h", "t_3h", "waitlist_offer")
         for canal in ("whatsapp", "email")
     ]
     assert all(f["sent"] == 0 and f["cost_usd"] == "0.000000" for f in cuerpo["rows"])
@@ -390,3 +391,91 @@ async def test_fallo_de_meta_del_mismo_segundo_que_el_envio_cuenta(
     )
 
     assert fila["failed"] == 1
+
+
+# ------------------------------------------------------------ ofertas de lista de espera (C-12)
+
+
+async def _oferta_enviada(
+    s: Sembrador,
+    sent_at: datetime,
+    *,
+    channel: ReminderChannel = ReminderChannel.WHATSAPP,
+    then: tuple[DeliveryEventType, ...] = (),
+    offer: Any = None,
+) -> Any:
+    """Job `waitlist_offer` enviado con sus eventos; devuelve la oferta (para su par de email)."""
+    clinica = s.staff.clinic
+    if offer is None:
+        entry = await make_entry(s.session, clinica, s.patient)
+        offer = await make_offer(
+            s.session,
+            entry,
+            professional=s.staff.professional,
+            chair=s.staff.chair,
+            starts_at=BASE + timedelta(days=90),
+            now=sent_at,
+        )
+    job = ReminderJob(
+        clinic_id=clinica.id,
+        waitlist_offer_id=offer.id,
+        step="waitlist_offer",
+        channel=channel,
+        scheduled_for=sent_at,
+        available_at=sent_at,
+        starts_at_snapshot=offer.starts_at,
+        status=ReminderStatus.SENT,
+        sent_at=sent_at,
+        provider_message_id="wamid.OFERTA-" + secrets.token_hex(6),
+        cost_micros=12500,
+    )
+    s.session.add(job)
+    await s.session.flush()
+    eventos = [(DeliveryEventType.SENT, sent_at, {"attempt": 1, "cost_micros": 12500})] + [
+        (tipo, sent_at + timedelta(minutes=i + 1), {"source": "meta"})
+        for i, tipo in enumerate(then)
+    ]
+    for tipo, momento, datos in eventos:
+        s.session.add(
+            DeliveryEvent(
+                clinic_id=clinica.id,
+                reminder_job_id=job.id,
+                event_type=tipo,
+                payload=datos,
+                occurred_at=momento,
+            )
+        )
+    await s.session.flush()
+    return offer
+
+
+async def test_oferta_enviada_y_leida(
+    app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
+) -> None:
+    staff, s = await _escena(db_session, redis_client, settings)
+    await _oferta_enviada(s, BASE, then=(DeliveryEventType.DELIVERED, DeliveryEventType.READ))
+
+    cuerpo = (await app_client.get(URL, params=ENERO, headers=staff.headers["admin"])).json()
+
+    fila = _fila(cuerpo, "waitlist_offer")
+    assert (fila["sent"], fila["delivered"], fila["read"], fila["failed"]) == (1, 1, 1, 0)
+    assert fila["cost_usd"] == "0.012500"
+    assert cuerpo["totals"]["sent"] == 1
+    assert cuerpo["totals"]["cost_usd"] == "0.012500"
+
+
+async def test_oferta_escalada_a_email(
+    app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
+) -> None:
+    staff, s = await _escena(db_session, redis_client, settings)
+    oferta = await _oferta_enviada(s, BASE, then=(DeliveryEventType.FAILED,))
+    await _oferta_enviada(
+        s, BASE + timedelta(minutes=5), channel=ReminderChannel.EMAIL, offer=oferta
+    )
+
+    cuerpo = (await app_client.get(URL, params=ENERO, headers=staff.headers["admin"])).json()
+
+    whatsapp = _fila(cuerpo, "waitlist_offer")
+    email = _fila(cuerpo, "waitlist_offer", "email")
+    assert (whatsapp["sent"], whatsapp["failed"]) == (1, 1)
+    assert (email["sent"], email["failed"]) == (1, 0)

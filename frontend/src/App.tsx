@@ -7,10 +7,12 @@ import AgendaPage from "./features/agenda/AgendaPage";
 import BlocksPage from "./features/blocks/BlocksPage";
 import MergePatientsPage from "./features/patients/MergePatientsPage";
 import ReportsPage from "./features/reports/ReportsPage";
+import WaitingListPage from "./features/waiting-list/WaitingListPage";
 import BookingPage from "./pages/BookingPage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import LoginPage from "./pages/LoginPage";
 import ManagePage from "./pages/ManagePage";
+import WaitlistOfferPage from "./pages/WaitlistOfferPage";
 import { Forbidden, RequireRole, RequireSession } from "./shared/auth/guards";
 import StaffLayout from "./shared/layout/StaffLayout";
 
@@ -18,15 +20,17 @@ import StaffLayout from "./shared/layout/StaffLayout";
 function App(): JSX.Element {
   return (
     <Routes>
-      {/* Públicas: reserva online (C-07) y gestión por token (C-08). */}
+      {/* Públicas: reserva online (C-07), gestión por token (C-08) y oferta de lista de espera (C-12). */}
       <Route path="/b/:slug" element={<BookingPage />} />
       <Route path="/g/:token" element={<ManagePage />} />
+      <Route path="/o/:token" element={<WaitlistOfferPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireSession />}>
         <Route path="/cambiar-clave" element={<ChangePasswordPage />} />
         <Route element={<StaffLayout />}>
           <Route path="/" element={<AgendaPage />} />
           <Route path="/bloqueos" element={<BlocksPage />} />
+          <Route path="/lista-de-espera" element={<WaitingListPage />} />
           <Route
             path="/politicas"
             element={

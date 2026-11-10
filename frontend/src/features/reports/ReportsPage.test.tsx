@@ -7,6 +7,7 @@ import type {
   CancellationsReport,
   OccupancyReport,
   Page,
+  WaitlistReport,
   WhatsAppReport
 } from "../../shared/api/types";
 import { RequireRole } from "../../shared/auth/guards";
@@ -121,6 +122,47 @@ function evento(n: number): AuditEvent {
   };
 }
 
+const LISTA: WaitlistReport = {
+  from_date: "2030-01-01",
+  to_date: "2030-01-31",
+  rows: [
+    {
+      professional_id: "prof-1",
+      professional_name: "Dra. Ficticia Uno",
+      created: 2,
+      auto: 1,
+      manual: 1,
+      accepted: 1,
+      declined: 0,
+      expired: 1,
+      cancelled: 0,
+      conversion_pct: 50
+    },
+    {
+      professional_id: "prof-2",
+      professional_name: "Dr. Ficticio Dos",
+      created: 0,
+      auto: 0,
+      manual: 0,
+      accepted: 0,
+      declined: 0,
+      expired: 0,
+      cancelled: 0,
+      conversion_pct: null
+    }
+  ],
+  totals: {
+    created: 2,
+    auto: 1,
+    manual: 1,
+    accepted: 1,
+    declined: 0,
+    expired: 1,
+    cancelled: 0,
+    conversion_pct: 50
+  }
+};
+
 function handlersBase(): void {
   server.use(
     ...agendaHandlers(),
@@ -128,6 +170,7 @@ function handlersBase(): void {
     http.get("/api/reports/absenteeism", () => HttpResponse.json(AUSENTISMO)),
     http.get("/api/reports/cancellations", () => HttpResponse.json(CANCELACIONES)),
     http.get("/api/reports/whatsapp", () => HttpResponse.json(WHATSAPP)),
+    http.get("/api/reports/waitlist", () => HttpResponse.json(LISTA)),
     http.get("/api/audit/appointments", () =>
       HttpResponse.json({ items: [evento(1)], next_cursor: null } satisfies Page<AuditEvent>)
     )
@@ -162,7 +205,7 @@ describe("ReportsPage", () => {
     expect(screen.queryByRole("tablist", { name: "Reportes" })).not.toBeInTheDocument();
   });
 
-  it("muestra las cinco pestañas y el mes en curso en la hora de la clínica", async () => {
+  it("muestra las seis pestañas y el mes en curso en la hora de la clínica", async () => {
     await renderAdmin();
 
     expect(await screen.findByRole("tab", { name: "Ocupación" })).toHaveAttribute(
@@ -174,6 +217,7 @@ describe("ReportsPage", () => {
       "Ausentismo",
       "Cancelaciones",
       "WhatsApp",
+      "Lista de espera",
       "Auditoría"
     ]);
     expect(screen.getByLabelText("Desde")).toHaveValue("2030-01-01");
@@ -498,5 +542,45 @@ describe("ReportsPage", () => {
 
     await waitFor(() => expect(nombres).toEqual(["whatsapp-2030-01-01-2030-01-31.csv"]));
     expect(formatos).toEqual(["2030-01-01|2030-01-31"]);
+  });
+
+  it("Lista de espera: cifras por profesional, tasa y descarga", async () => {
+    const pedidos: URLSearchParams[] = [];
+    server.use(
+      http.get("/api/reports/waitlist", ({ request }) => {
+        pedidos.push(new URL(request.url).searchParams);
+        return HttpResponse.json(LISTA);
+      })
+    );
+    const { user } = await renderAdmin();
+
+    await user.click(await screen.findByRole("tab", { name: "Lista de espera" }));
+
+    const tabla = await screen.findByRole("table", { name: "Conversión de la lista de espera" });
+    expect(
+      within(tabla).getByRole("row", { name: /Dra. Ficticia Uno 2 1 1 1 0 1 0 50 %/ })
+    ).toBeInTheDocument();
+    expect(within(tabla).getByRole("row", { name: /Dr. Ficticio Dos 0 0 0 0 0 0 0 —/ })).toBeInTheDocument();
+    expect(within(tabla).getByRole("row", { name: /Total 2 1 1 1 0 1 0 50 %/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Descargar CSV" })).toBeInTheDocument();
+    expect(pedidos[0]?.get("from")).toBe("2030-01-01");
+  });
+
+  it("WhatsApp nombra el paso de la oferta de lista de espera", async () => {
+    server.use(
+      http.get("/api/reports/whatsapp", () =>
+        HttpResponse.json({
+          ...WHATSAPP,
+          rows: [...WHATSAPP.rows, filaWa("waitlist_offer", "whatsapp", 1)],
+          totals: { ...WHATSAPP.totals, sent: WHATSAPP.totals.sent + 1 }
+        })
+      )
+    );
+    const { user } = await renderAdmin();
+
+    await user.click(await screen.findByRole("tab", { name: "WhatsApp" }));
+
+    const tabla = await screen.findByRole("table", { name: "Mensajes por paso y canal" });
+    expect(within(tabla).getByText("Oferta de lista de espera")).toBeInTheDocument();
   });
 });

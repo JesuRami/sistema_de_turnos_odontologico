@@ -10,7 +10,13 @@ import pytest
 from app.core.settings import Settings
 from app.models import ReminderChannel, ReminderStatus
 from app.worker import entrypoint
-from app.worker.settings import build_worker_settings, on_shutdown, on_startup, reminder_tick
+from app.worker.settings import (
+    build_worker_settings,
+    on_shutdown,
+    on_startup,
+    reminder_tick,
+    waitlist_tick,
+)
 from arq.worker import create_worker
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -30,8 +36,13 @@ def _settings(**cambios: object) -> Settings:
 def test_el_worker_declara_un_cron_por_minuto_y_la_concurrencia_configurada() -> None:
     configuracion = build_worker_settings(_settings(REMINDER_WORKER_CONCURRENCY=4))
 
-    [cron_job] = configuracion["cron_jobs"]
+    cron_job, cron_espera = configuracion["cron_jobs"]
     assert cron_job.name == "cron:reminder_tick"
+    # C-12 (D4): el tick de la lista de espera corre a los 30 s de cada minuto.
+    assert cron_espera.name == "cron:waitlist_tick"
+    assert cron_espera.second in (30, {30})
+    assert cron_espera.unique is True
+    assert waitlist_tick in configuracion["functions"]
     assert cron_job.minute is None and cron_job.hour is None  # todos los minutos
     assert cron_job.second in (0, {0})
     assert cron_job.run_at_startup is True
@@ -47,7 +58,7 @@ def test_el_worker_declara_un_cron_por_minuto_y_la_concurrencia_configurada() ->
 async def test_arq_acepta_la_configuracion_y_arma_el_worker() -> None:
     worker = create_worker(build_worker_settings(_settings()))
 
-    assert [c.name for c in worker.cron_jobs] == ["cron:reminder_tick"]
+    assert [c.name for c in worker.cron_jobs] == ["cron:reminder_tick", "cron:waitlist_tick"]
     assert worker.max_jobs == 10
 
 

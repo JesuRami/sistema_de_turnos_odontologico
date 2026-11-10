@@ -28,6 +28,8 @@ from app.models import (
     Clinic,
     Patient,
     ReminderJob,
+    WaitingListEntry,
+    WaitlistOffer,
     WhatsAppIntent,
 )
 
@@ -41,6 +43,8 @@ class Target:
     clinic_id: uuid.UUID
     patient_id: uuid.UUID
     appointment_id: uuid.UUID | None = None
+    # C-12 (D8): el paciente citó el mensaje de una oferta de la lista de espera.
+    waitlist_offer_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +121,48 @@ async def _by_context(
     return Target(clinic_id=fila.clinic_id, patient_id=fila.patient_id, appointment_id=fila.id)
 
 
+async def _by_offer_context(
+    session: AsyncSession, context_id: str, formas: list[str], clinicas: list[uuid.UUID]
+) -> Target | None:
+    """El mensaje citado es el envío de una oferta (C-12): oferta → entrada → paciente."""
+    fila = (
+        await session.execute(
+            select(WaitlistOffer.clinic_id, WaitingListEntry.patient_id, WaitlistOffer.id)
+            .select_from(ReminderJob)
+            .join(
+                WaitlistOffer,
+                and_(
+                    WaitlistOffer.clinic_id == ReminderJob.clinic_id,
+                    WaitlistOffer.id == ReminderJob.waitlist_offer_id,
+                ),
+            )
+            .join(
+                WaitingListEntry,
+                and_(
+                    WaitingListEntry.clinic_id == WaitlistOffer.clinic_id,
+                    WaitingListEntry.id == WaitlistOffer.entry_id,
+                ),
+            )
+            .join(
+                Patient,
+                and_(
+                    Patient.clinic_id == WaitingListEntry.clinic_id,
+                    Patient.id == WaitingListEntry.patient_id,
+                ),
+            )
+            .where(
+                ReminderJob.provider_message_id == context_id,
+                ReminderJob.clinic_id.in_(clinicas),
+                Patient.phone_e164.in_(formas),
+                Patient.merged_into_patient_id.is_(None),
+            )
+        )
+    ).one_or_none()
+    if fila is None:
+        return None
+    return Target(clinic_id=fila[0], patient_id=fila[1], waitlist_offer_id=fila[2])
+
+
 async def route(
     session: AsyncSession,
     settings: Settings,
@@ -133,6 +179,8 @@ async def route(
     formas = sender_forms(wa_id)
     if context_id:
         destino = await _by_context(session, context_id, formas, clinicas)
+        if destino is None:
+            destino = await _by_offer_context(session, context_id, formas, clinicas)
         if destino is not None:
             return Routing(routed_by="context", targets=[destino])
     fichas = (

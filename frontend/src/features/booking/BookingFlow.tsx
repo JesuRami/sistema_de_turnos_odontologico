@@ -19,6 +19,7 @@ import { availabilityKey, useAvailability, useCatalog, windowRange, WINDOWS } fr
 import TimeStep from "./TimeStep";
 import type { BookingCatalog, BookingPatient, BookingSlot } from "./types";
 import { useBookingFlow, type BookingStep } from "./useBookingFlow";
+import WaitlistStep from "./WaitlistStep";
 
 const TITULOS: Record<BookingStep, string> = {
   professional: "Elegí profesional",
@@ -43,6 +44,8 @@ function Flow({ slug, catalog }: FlowProps): JSX.Element {
   const range = windowRange(hoy, flow.windowIndex, tz);
   const disponibilidad = useAvailability(slug, flow.professionalId, range);
   const [problem, setProblem] = useState<BookingProblem | null>(null);
+  // C-12: camino alternativo "anotarme en la lista de espera" desde los pasos de día y hora.
+  const [enEspera, setEnEspera] = useState(false);
   const ultimoPaciente = useRef<BookingPatient | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
 
@@ -112,6 +115,21 @@ function Flow({ slug, catalog }: FlowProps): JSX.Element {
   const numero = indice + 1 - (unico === null ? 0 : 1);
   const profesional = catalog.professionals.find((p) => p.id === flow.professionalId);
 
+  if (enEspera) {
+    return (
+      <>
+        <h2 className="mt-4 text-xl font-semibold">Lista de espera</h2>
+        <WaitlistStep
+          slug={slug}
+          catalog={catalog}
+          professionalId={flow.professionalId}
+          today={hoy}
+          onCancel={() => setEnEspera(false)}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       {flow.step !== "done" && (
@@ -159,6 +177,18 @@ function Flow({ slug, catalog }: FlowProps): JSX.Element {
           selected={flow.slot}
           onSelect={(startsAt) => dispatch({ type: "slot", startsAt })}
         />
+      )}
+      {(flow.step === "day" || flow.step === "time") && (
+        <div className="mt-6 rounded-lg border border-dental-600/20 bg-white p-3 text-sm">
+          <p>¿Ningún horario te sirve?</p>
+          <button
+            type="button"
+            className={`${CHOICE} ${CHOICE_OFF} mt-2 w-full`}
+            onClick={() => setEnEspera(true)}
+          >
+            Anotarme en la lista de espera
+          </button>
+        </div>
       )}
       {flow.step === "contact" && (
         <ContactStep

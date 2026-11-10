@@ -15,6 +15,8 @@ BOTONES_ESPERADOS = {
     "t_72h": ("confirm", "change"),
     "t_24h": ("confirm", "change"),
     "t_3h": ("cancel",),
+    # C-12 (D8): "Tomarlo" / "Paso".
+    "waitlist_offer": ("offer_accept", "offer_decline"),
 }
 
 

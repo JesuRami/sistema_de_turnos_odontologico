@@ -40,6 +40,28 @@ export interface BookingRequest {
 
 export type BookingWarning = "phone_invalid_email_channel" | "whatsapp_declined_email_channel";
 
+/** Anotación pública en la lista de espera (C-12): profesional o "Cualquiera" (`null`). */
+export interface WaitlistJoinRequest {
+  professional_id: string | null;
+  date_from: string;
+  date_to: string;
+  time_from: string | null;
+  time_to: string | null;
+  weekdays: number[] | null;
+  patient: BookingPatient;
+}
+
+export interface WaitlistJoined {
+  professional_id: string | null;
+  date_from: string;
+  date_to: string;
+  time_from: string | null;
+  time_to: string | null;
+  weekdays: number[] | null;
+  channel: "whatsapp" | "email";
+  warnings: BookingWarning[];
+}
+
 export interface BookingResult {
   starts_at: string;
   ends_at: string;

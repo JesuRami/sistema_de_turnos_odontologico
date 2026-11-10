@@ -13,8 +13,12 @@ import re
 from dataclasses import dataclass
 
 STEP_CREATED = "created"
+# C-12 (D2): envío de una oferta de la lista de espera; `{{vence}}`: hora local del vencimiento.
+STEP_WAITLIST_OFFER = "waitlist_offer"
 LOCALE = "es_AR"
-ALLOWED_VARIABLES = frozenset({"nombre", "clinica", "fecha", "hora", "profesional", "link"})
+ALLOWED_VARIABLES = frozenset(
+    {"nombre", "clinica", "fecha", "hora", "profesional", "link", "vence"}
+)
 _VARIABLE = re.compile(r"\{\{(\w+)\}\}")
 
 
@@ -22,6 +26,9 @@ _VARIABLE = re.compile(r"\{\{(\w+)\}\}")
 BUTTON_CONFIRM = "confirm"
 BUTTON_CHANGE = "change"
 BUTTON_CANCEL = "cancel"
+# Botones de la oferta de lista de espera (C-12, D8): "Tomarlo" / "Paso".
+BUTTON_OFFER_ACCEPT = "offer_accept"
+BUTTON_OFFER_DECLINE = "offer_decline"
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +93,14 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         (BUTTON_CANCEL,),
     ),
     TemplateSpec(
+        "whatsapp",
+        STEP_WAITLIST_OFFER,
+        "hueco_lista_espera_v1",
+        "Hola {{nombre}}, se liberó un turno en {{clinica}}: {{fecha}} {{hora}} con "
+        "{{profesional}}. Tenés hasta las {{vence}} para tomarlo: {{link}}",
+        (BUTTON_OFFER_ACCEPT, BUTTON_OFFER_DECLINE),
+    ),
+    TemplateSpec(
         "email",
         STEP_CREATED,
         "email_turno_creado_v1",
@@ -112,6 +127,13 @@ DEFAULT_TEMPLATES: tuple[TemplateSpec, ...] = (
         "email_recordatorio_3h_v1",
         "Hola {{nombre}}, hoy a las {{hora}} te esperamos en {{clinica}} con "
         "{{profesional}}. Llegá 10 minutos antes. Gestioná tu turno: {{link}}",
+    ),
+    TemplateSpec(
+        "email",
+        STEP_WAITLIST_OFFER,
+        "email_hueco_lista_espera_v1",
+        "Hola {{nombre}}, se liberó un turno en {{clinica}} el {{fecha}} a las {{hora}} con "
+        "{{profesional}}. Tenés hasta las {{vence}} para tomarlo o dejarlo pasar acá: {{link}}",
     ),
 )
 

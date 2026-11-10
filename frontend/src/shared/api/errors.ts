@@ -65,7 +65,21 @@ const MENSAJES: Record<string, string> = {
   resend_cooldown: "Hay un reenvío en cola. Esperá un momento",
   resend_limit: "Se alcanzó el máximo de reenvíos de hoy para este recordatorio",
   invalid_note: "La nota no puede tener teléfonos, emails ni DNI (máx. 200 caracteres)",
-  range_too_large: "El rango no puede superar los 31 días"
+  range_too_large: "El rango elegido es demasiado largo",
+  // lista de espera (C-12)
+  already_waiting: "El paciente ya está en la lista de espera para ese profesional",
+  entry_offered: "La entrada tiene una oferta pendiente: esperá la respuesta o retirala primero",
+  entry_closed: "La entrada ya está cerrada (convertida, vencida o retirada)",
+  priority_reason_required:
+    "Indicá un motivo de prioridad de 10 a 200 caracteres, sin teléfonos, emails ni DNI",
+  fifo_skip_reason_required:
+    "Hay pacientes antes en la cola: indicá el motivo para saltear el orden de llegada",
+  invalid_time_window: "La franja horaria no es válida: completá desde y hasta, en ese orden",
+  invalid_weekdays: "Elegí al menos un día de la semana, sin repetir",
+  offer_expired: "La oferta ya venció",
+  offer_closed: "La oferta ya fue respondida o retirada",
+  patient_busy: "El paciente ya tiene otro turno a esa hora",
+  offer_not_found: "La oferta no existe o el link venció"
 };
 
 export function messageFor(error: unknown): string {

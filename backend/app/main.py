@@ -31,6 +31,7 @@ from app.modules.patients.router import router as patients_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.reports.router import router as reports_router
 from app.modules.users.router import router as users_router
+from app.modules.waiting_list.public import router as waitlist_offer_router
 from app.modules.waiting_list.router import router as waiting_list_router
 
 _RATE_RE = re.compile(r"^\s*(\d+)\s*/\s*(second|minute|hour)\s*$")
@@ -150,6 +151,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         booking_public_router,
         manage_router,
         waiting_list_router,
+        waitlist_offer_router,
         reminders_router,
         notifications_router,
         users_router,

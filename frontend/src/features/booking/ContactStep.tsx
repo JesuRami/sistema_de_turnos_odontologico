@@ -12,6 +12,9 @@ interface ContactStepProps {
   onSubmit: (patient: BookingPatient) => void;
   onPickAlternative: (slot: BookingSlot) => void;
   onChooseAnother: () => void;
+  /** Texto del botón (C-12: la anotación en la lista de espera reutiliza este paso). */
+  submitLabel?: string;
+  pendingLabel?: string;
 }
 
 const INPUT =
@@ -102,7 +105,9 @@ function ContactStep({
   problem,
   onSubmit,
   onPickAlternative,
-  onChooseAnother
+  onChooseAnother,
+  submitLabel = "Confirmar turno",
+  pendingLabel = "Reservando…"
 }: ContactStepProps): JSX.Element {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -215,7 +220,7 @@ function ContactStep({
         disabled={pending}
         className={`${CHOICE} ${CHOICE_ON} w-full disabled:opacity-60`}
       >
-        {pending ? "Reservando…" : "Confirmar turno"}
+        {pending ? pendingLabel : submitLabel}
       </button>
     </form>
   );

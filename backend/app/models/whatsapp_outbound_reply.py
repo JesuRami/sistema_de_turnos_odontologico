@@ -50,6 +50,12 @@ class WhatsAppOutboundReply(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Ba
             ["appointment.clinic_id", "appointment.id"],
             name="fk_whatsapp_outbound_reply_appointment",
         ),
+        # C-12 (D8): respuesta a una oferta de la lista de espera.
+        ForeignKeyConstraint(
+            ["clinic_id", "waitlist_offer_id"],
+            ["waitlist_offer.clinic_id", "waitlist_offer.id"],
+            name="fk_whatsapp_outbound_reply_offer",
+        ),
         CheckConstraint("attempts >= 0", name="attempts_nonneg"),
         CheckConstraint("status <> 'sending' OR claimed_at IS NOT NULL", name="sending_has_claim"),
         CheckConstraint("status <> 'sent' OR sent_at IS NOT NULL", name="sent_has_sent_at"),
@@ -69,6 +75,7 @@ class WhatsAppOutboundReply(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Ba
     inbound_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    waitlist_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     kind: Mapped[WhatsAppReplyKind] = mapped_column(WHATSAPP_REPLY_KIND, nullable=False)
     status: Mapped[WhatsAppReplyStatus] = mapped_column(
         WHATSAPP_REPLY_STATUS, nullable=False, server_default=text("'pending'")

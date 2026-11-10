@@ -48,6 +48,9 @@ export function stepLabel(step: string): string {
   if (step === "created") {
     return "Alta de turno";
   }
+  if (step === "waitlist_offer") {
+    return "Oferta de lista de espera";
+  }
   const horas = /^t_(\d+)h$/.exec(step)?.[1];
   return horas === undefined ? step : `${horas} h antes`;
 }

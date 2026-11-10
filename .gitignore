@@ -32,3 +32,6 @@ Thumbs.db
 frontend/e2e/.state.json
 frontend/test-results/
 frontend/playwright-report/
+
+# Material interno para el video de demostración (no se versiona)
+docs/video/

@@ -15,16 +15,18 @@ import {
   CancellationsPanel,
   DownloadButton,
   OccupancyPanel,
+  WaitlistPanel,
   WhatsAppPanel
 } from "./Panels";
 
-type TabId = "occupancy" | "absenteeism" | "cancellations" | "whatsapp" | "audit";
+type TabId = "occupancy" | "absenteeism" | "cancellations" | "whatsapp" | "waitlist" | "audit";
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: "occupancy", label: "Ocupación" },
   { id: "absenteeism", label: "Ausentismo" },
   { id: "cancellations", label: "Cancelaciones" },
   { id: "whatsapp", label: "WhatsApp" },
+  { id: "waitlist", label: "Lista de espera" },
   { id: "audit", label: "Auditoría" }
 ];
 
@@ -128,6 +130,7 @@ function ReportsPage(): JSX.Element {
           {tab === "absenteeism" && <AbsenteeismPanel range={range} />}
           {tab === "cancellations" && <CancellationsPanel range={range} />}
           {tab === "whatsapp" && <WhatsAppPanel range={range} />}
+          {tab === "waitlist" && <WaitlistPanel range={range} />}
           {tab === "audit" && (
             <AuditPanel
               range={range}

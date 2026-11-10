@@ -12,7 +12,6 @@ cae en `resend_cooldown`. La nota se valida antes de tocar nada y el error nunca
 
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime, timedelta
 
@@ -20,6 +19,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import DomainError
+from app.common.free_text import clean_free_text
 from app.core.settings import Settings
 from app.models import ReminderChannel, ReminderJob, ReminderManualResend, ReminderStatus
 from app.models.reminder_manual_resend import NOTE_MAX_LENGTH
@@ -28,26 +28,10 @@ from app.modules.reminders.context import resend_context, scoped_appointment
 from app.modules.reminders.guards import JobState, ResendStats, resend_block
 from app.modules.reminders.schemas import ResendAccepted
 
-_EMAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
-# Secuencias de dígitos con separadores típicos de teléfonos y DNI (`+54 11 5555-0101`,
-# `30.123.456`); con 7 dígitos o más se consideran un dato personal.
-_DIGITS_RE = re.compile(r"\+?\d[\d\s.\-()/]*\d")
-_PII_MIN_DIGITS = 7
-
 
 def validate_note(note: str | None) -> str | None:
     """Nota operativa opcional: ≤ 200 caracteres y sin teléfono, email ni DNI."""
-    if note is None:
-        return None
-    limpia = note.strip()
-    if not limpia:
-        return None
-    if len(limpia) > NOTE_MAX_LENGTH or _EMAIL_RE.search(limpia):
-        raise DomainError(422, "invalid_note")
-    for tramo in _DIGITS_RE.findall(limpia):
-        if sum(c.isdigit() for c in tramo) >= _PII_MIN_DIGITS:
-            raise DomainError(422, "invalid_note")
-    return limpia
+    return clean_free_text(note, max_length=NOTE_MAX_LENGTH, code="invalid_note")
 
 
 async def resend(

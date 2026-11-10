@@ -97,6 +97,32 @@ def booking_create_slug_key(clinic_id: object) -> str:
     return f"rl:booking:create:slug:{clinic_id}"
 
 
+def waitlist_join_ip_key(ip: str) -> str:
+    """Cupo de anotaciones públicas en la lista de espera por IP (C-12, D7)."""
+    return f"rl:waitlist:join:ip:{ip}"
+
+
+def waitlist_join_slug_key(clinic_id: object) -> str:
+    """Cupo de anotaciones públicas por clínica (C-12, D7)."""
+    return f"rl:waitlist:join:slug:{clinic_id}"
+
+
+def waitlist_offer_read_ip_key(ip: str) -> str:
+    return f"rl:waitlist:offer:read:ip:{ip}"
+
+
+def waitlist_offer_read_token_key(token_sha256: str) -> str:
+    return f"rl:waitlist:offer:read:token:{token_sha256}"
+
+
+def waitlist_offer_write_ip_key(ip: str) -> str:
+    return f"rl:waitlist:offer:write:ip:{ip}"
+
+
+def waitlist_offer_write_token_key(token_sha256: str) -> str:
+    return f"rl:waitlist:offer:write:token:{token_sha256}"
+
+
 def manage_read_ip_key(ip: str) -> str:
     """Clave del cupo de lecturas de gestión por IP (C-08, D10)."""
     return f"rl:manage:read:ip:{ip}"

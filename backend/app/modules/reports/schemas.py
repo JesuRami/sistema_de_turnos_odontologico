@@ -134,3 +134,28 @@ class WhatsAppReport(BaseModel):
     currency: Literal["USD"] = "USD"
     rows: list[WhatsAppReportRow]
     totals: WhatsAppReportTotals
+
+
+class WaitlistReportTotals(BaseModel):
+    """Totales de la conversión de la lista de espera (C-12, D9)."""
+
+    created: int
+    auto: int
+    manual: int
+    accepted: int
+    declined: int
+    expired: int
+    cancelled: int
+    conversion_pct: float | None
+
+
+class WaitlistReportRow(WaitlistReportTotals):
+    professional_id: uuid.UUID
+    professional_name: str
+
+
+class WaitlistReport(BaseModel):
+    from_date: date
+    to_date: date
+    rows: list[WaitlistReportRow]
+    totals: WaitlistReportTotals

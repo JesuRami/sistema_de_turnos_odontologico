@@ -18,7 +18,7 @@
 | T-72 h | `recordatorio_72h_v1` | "Hola {{nombre}}, te recordamos tu turno del {{fecha}} {{hora}} con {{profesional}}. ¿Confirmás? {{link}}" | Sí, confirmo / Reprogramar |
 | T-24 h | `recordatorio_24h_v1` | "Mañana {{hora}} tenés turno con {{profesional}} en {{clinica}}. Respondé SÍ para confirmar o tocá para cambiar: {{link}}" | SÍ / Cambiar |
 | T-3 h | `recordatorio_3h_v1` | "Hoy {{hora}} te esperamos en {{clinica}} ({{direccion}}). Llegá 10 min antes. {{link}}" | Cómo llegar / Cancelar |
-| Oferta lista de espera | `hueco_lista_espera_v1` | "Se liberó un turno: {{fecha}} {{hora}} con {{profesional}}. Tenés {{horas}} h para tomarlo: {{link}}" | Tomarlo / Paso |
+| Oferta lista de espera | `hueco_lista_espera_v1` | "Hola {{nombre}}, se liberó un turno en {{clinica}}: {{fecha}} {{hora}} con {{profesional}}. Tenés hasta las {{vence}} para tomarlo: {{link}}" (C-12: `{{vence}}` reemplaza a `{{horas}}` para no redondear mal una ventana corta; pendiente de aprobación en Meta) | Tomarlo / Paso |
 | Post-ausencia (recall suave) | `ausencia_recall_v1` | "Ayer no pudimos verte en {{clinica}}. ¿Reprogramamos? {{link}}" | Reprogramar |
 
 **Suposición:** 6 plantillas cubren el MVP. El recall post-ausencia es deliberadamente suave (una sola, sin insistencia) hasta medir tolerancia.

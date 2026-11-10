@@ -22,6 +22,7 @@ from app.core.database import create_engine, create_sessionmaker
 from app.core.settings import Settings, get_settings
 from app.modules.reminders.dispatch import run_tick
 from app.modules.reminders.senders import build_senders, close_senders
+from app.modules.waiting_list.engine import run_waitlist_tick
 
 logger = logging.getLogger("worker")
 
@@ -61,10 +62,15 @@ async def reminder_tick(ctx: dict[str, Any]) -> None:
     await run_tick(ctx["session_factory"], ctx["senders"], ctx["settings"], now=ctx["clock"])
 
 
+async def waitlist_tick(ctx: dict[str, Any]) -> None:
+    """Un tick de la lista de espera (C-12, D4): vence ofertas, rota el hueco, vence entradas."""
+    await run_waitlist_tick(ctx["session_factory"], ctx["settings"], now=ctx["clock"])
+
+
 def build_worker_settings(settings: Settings) -> dict[str, Any]:
     """Diccionario que `arq.worker.create_worker` acepta como configuración."""
     return {
-        "functions": [reminder_tick],
+        "functions": [reminder_tick, waitlist_tick],
         "cron_jobs": [
             cron(
                 reminder_tick,
@@ -73,7 +79,16 @@ def build_worker_settings(settings: Settings) -> dict[str, Any]:
                 unique=True,
                 timeout=settings.REMINDER_TICK_BUDGET_S + _TICK_TIMEOUT_MARGIN_S,
                 max_tries=1,
-            )
+            ),
+            # C-12 (D4): a mitad de minuto, para no competir con el tick de recordatorios.
+            cron(
+                waitlist_tick,
+                second=30,
+                run_at_startup=True,
+                unique=True,
+                timeout=settings.REMINDER_TICK_BUDGET_S + _TICK_TIMEOUT_MARGIN_S,
+                max_tries=1,
+            ),
         ],
         "on_startup": on_startup,
         "on_shutdown": on_shutdown,

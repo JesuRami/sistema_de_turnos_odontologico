@@ -359,7 +359,8 @@ class AppointmentsService:
         nunca debe llevar datos personales ni el token.
         """
         if data.is_overbooking:
-            if origin is AppointmentOrigin.ONLINE:
+            # Ni la reserva online ni la lista de espera (RN-LE-05) generan sobreturnos.
+            if origin in (AppointmentOrigin.ONLINE, AppointmentOrigin.WAITLIST):
                 raise DomainError(422, "overbooking_not_allowed")
             if not self.actor.is_front_desk:
                 raise DomainError(403, "forbidden_role")
@@ -368,7 +369,10 @@ class AppointmentsService:
             self.session, self.actor.clinic_id, [data.professional_id], [data.chair_id]
         )
         await self._assert_patient(data.patient_id)
-        if origin is AppointmentOrigin.ONLINE and data.starts_at <= self.now:
+        if (
+            origin in (AppointmentOrigin.ONLINE, AppointmentOrigin.WAITLIST)
+            and data.starts_at <= self.now
+        ):
             raise DomainError(422, "appointment_in_past")
         resuelto = await self._resolve(data, recursos, policy)
 

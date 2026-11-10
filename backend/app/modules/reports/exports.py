@@ -1,6 +1,7 @@
 """Exportación completa de datos de la clínica (C-13, US-051 CA-3, sin lock-in).
 
-ZIP con turnos, pacientes operativos y eventos de auditoría. Cada tabla se lee
+ZIP con turnos, pacientes operativos, eventos de auditoría y, desde C-12, la lista de espera
+(entradas, ofertas y sus eventos). Cada tabla se lee
 por lotes con cursor por `id` (regla 8) y se escribe a un archivo temporal que
 se desborda a disco, así que la memoria no crece con el volumen. Todo se filtra
 por `clinic_id` del principal (regla 4). La ejecución queda en `auth_event`.
@@ -20,7 +21,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.csv_export import BOM, csv_text, to_json_value
-from app.models import Appointment, AppointmentEvent, AuthEventType, Patient
+from app.models import (
+    Appointment,
+    AppointmentEvent,
+    AuthEventType,
+    Patient,
+    WaitingListEntry,
+    WaitlistEvent,
+    WaitlistOffer,
+)
 from app.modules.auth.audit import record_event
 
 BATCH = 1000
@@ -90,6 +99,65 @@ TABLES: tuple[ExportTable, ...] = (
             "slot_ends_at",
             "professional_id",
             "chair_id",
+            "created_at",
+        ),
+    ),
+    # C-12: lista de espera (entradas, ofertas y su auditoría append-only).
+    ExportTable(
+        "waiting_list_entries",
+        WaitingListEntry,
+        (
+            "id",
+            "patient_id",
+            "professional_id",
+            "date_from",
+            "date_to",
+            "time_from",
+            "time_to",
+            "weekdays",
+            "notes",
+            "status",
+            "source",
+            "prioritized_at",
+            "priority_reason",
+            "consecutive_expired",
+            "closed_reason",
+            "created_by_user_id",
+            "created_at",
+        ),
+    ),
+    ExportTable(
+        "waitlist_offers",
+        WaitlistOffer,
+        (
+            "id",
+            "entry_id",
+            "professional_id",
+            "chair_id",
+            "starts_at",
+            "ends_at",
+            "expires_at",
+            "status",
+            "mode",
+            "source_appointment_id",
+            "appointment_id",
+            "closed_reason",
+            "responded_at",
+            "created_by_user_id",
+            "created_at",
+        ),
+    ),
+    ExportTable(
+        "waitlist_events",
+        WaitlistEvent,
+        (
+            "id",
+            "entry_id",
+            "offer_id",
+            "event",
+            "actor_type",
+            "actor_user_id",
+            "payload",
             "created_at",
         ),
     ),

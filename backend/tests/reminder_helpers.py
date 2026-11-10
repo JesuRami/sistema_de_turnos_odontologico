@@ -138,9 +138,13 @@ async def make_job(
 
 
 async def jobs_of(
-    session: AsyncSession, appointment_id: uuid.UUID
+    session: AsyncSession, appointment_id: uuid.UUID | None
 ) -> dict[tuple[str, str], ReminderJob]:
-    """Jobs del turno por `(paso, canal)`, releídos de la base (ignora el identity map)."""
+    """Jobs del turno por `(paso, canal)`, releídos de la base (ignora el identity map).
+
+    Acepta el `appointment_id` opcional de un job (C-12): un job de oferta no tiene turno.
+    """
+    assert appointment_id is not None, "job sin turno (oferta de lista de espera)"
     filas = (
         (
             await session.execute(
@@ -155,7 +159,7 @@ async def jobs_of(
     return {(j.step, j.channel.value): j for j in filas}
 
 
-async def statuses_of(session: AsyncSession, appointment_id: uuid.UUID) -> dict[str, str]:
+async def statuses_of(session: AsyncSession, appointment_id: uuid.UUID | None) -> dict[str, str]:
     """`{"paso/canal": estado}` de los jobs del turno."""
     return {
         f"{paso}/{canal}": job.status.value

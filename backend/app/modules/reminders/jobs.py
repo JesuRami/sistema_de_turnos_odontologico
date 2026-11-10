@@ -111,20 +111,27 @@ async def escalate_to_email(
     """
     if job.channel is not ReminderChannel.WHATSAPP or not patient_email or email_blocked:
         return False
-    creado = await session.scalar(
-        pg_insert(ReminderJob)
-        .values(
-            clinic_id=job.clinic_id,
-            appointment_id=job.appointment_id,
-            step=job.step,
-            channel=ReminderChannel.EMAIL,
-            scheduled_for=now,
-            available_at=now,
-            starts_at_snapshot=starts_at,
-        )
-        .on_conflict_do_nothing(index_elements=["appointment_id", "step", "channel"])
-        .returning(ReminderJob.id)
+    insercion = pg_insert(ReminderJob).values(
+        clinic_id=job.clinic_id,
+        appointment_id=job.appointment_id,
+        waitlist_offer_id=job.waitlist_offer_id,
+        step=job.step,
+        channel=ReminderChannel.EMAIL,
+        scheduled_for=now,
+        available_at=now,
+        starts_at_snapshot=starts_at,
     )
+    if job.waitlist_offer_id is not None:
+        # C-12 (D2): el par de email de una oferta es único por `(oferta, canal)`.
+        insercion = insercion.on_conflict_do_nothing(
+            index_elements=["waitlist_offer_id", "channel"],
+            index_where=ReminderJob.waitlist_offer_id.is_not(None),
+        )
+    else:
+        insercion = insercion.on_conflict_do_nothing(
+            index_elements=["appointment_id", "step", "channel"]
+        )
+    creado = await session.scalar(insercion.returning(ReminderJob.id))
     if creado is None:
         return False
     add_event(session, job.id, job.clinic_id, DeliveryEventType.ESCALATED, {"to": "email"})

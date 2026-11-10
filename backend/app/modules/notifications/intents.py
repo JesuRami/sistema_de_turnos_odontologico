@@ -14,7 +14,13 @@ import unicodedata
 
 from app.models import WhatsAppIntent
 from app.modules.notifications.payload import InboundMessage
-from app.modules.reminders.templates import BUTTON_CANCEL, BUTTON_CHANGE, BUTTON_CONFIRM
+from app.modules.reminders.templates import (
+    BUTTON_CANCEL,
+    BUTTON_CHANGE,
+    BUTTON_CONFIRM,
+    BUTTON_OFFER_ACCEPT,
+    BUTTON_OFFER_DECLINE,
+)
 
 _STOP = frozenset(
     {
@@ -47,10 +53,15 @@ _CHANGE = frozenset(
         "reprogramar turno",
     }
 )
+# C-12 (D8): respuesta a una oferta de la lista de espera. Solo actúan si citan la oferta.
+_ACCEPT_OFFER = frozenset({"tomarlo", "lo tomo", "lo quiero", "tomar"})
+_DECLINE_OFFER = frozenset({"paso", "no me sirve"})
 _BUTTONS = {
     BUTTON_CONFIRM: WhatsAppIntent.CONFIRM,
     BUTTON_CHANGE: WhatsAppIntent.CHANGE,
     BUTTON_CANCEL: WhatsAppIntent.CHANGE,
+    BUTTON_OFFER_ACCEPT: WhatsAppIntent.ACCEPT_OFFER,
+    BUTTON_OFFER_DECLINE: WhatsAppIntent.DECLINE_OFFER,
 }
 _NO_ALNUM = re.compile(r"[^a-z0-9 ]+")
 _SPACES = re.compile(r"\s+")
@@ -82,4 +93,8 @@ def classify(message: InboundMessage) -> WhatsAppIntent:
         return WhatsAppIntent.CONFIRM
     if frase in _CHANGE:
         return WhatsAppIntent.CHANGE
+    if frase in _ACCEPT_OFFER:
+        return WhatsAppIntent.ACCEPT_OFFER
+    if frase in _DECLINE_OFFER:
+        return WhatsAppIntent.DECLINE_OFFER
     return WhatsAppIntent.UNKNOWN

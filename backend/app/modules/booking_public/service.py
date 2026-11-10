@@ -58,6 +58,8 @@ from app.modules.booking_public.schemas import (
     PatientInput,
     ProfessionalPublic,
     SlotRead,
+    WaitlistJoin,
+    WaitlistJoined,
 )
 from app.modules.clinic.service import create_patient
 from app.modules.reminders.consent import ConsentService
@@ -388,6 +390,54 @@ class BookingPublicService:
             channel=contacto.channel,
             warnings=list(contacto.warnings),  # type: ignore[arg-type]
             manage_url=f"{base}/g/{token}",
+        )
+
+    async def join_waitlist(self, clinic: PublicClinic, payload: WaitlistJoin) -> WaitlistJoined:
+        """Anotación pública en la lista de espera (C-12, D7), en una transacción.
+
+        Valida contacto, profesional y preferencias ANTES de escribir; después empareja o crea al
+        paciente con las mismas reglas que la reserva (RN-ON-05, consentimiento con fuente
+        `booking`) y agrega la entrada con `EntriesService` (unicidad RN-LE-01).
+        """
+        # Import diferido: `waiting_list` depende de `appointments`, igual que este módulo.
+        from app.modules.waiting_list.entries import (
+            EntriesService,
+            preferences_of,
+            validate_preferences,
+        )
+
+        contacto = self._contact(payload.patient)
+        if payload.professional_id is not None:
+            await self.bookable_professional(clinic, payload.professional_id)
+        prefs = validate_preferences(
+            preferences_of(payload),
+            today=self.now.astimezone(clinic.tz).date(),
+            horizon_days=self.horizon_days,
+        )
+        actor = Actor(clinic_id=clinic.id, type=ActorType.PATIENT_TOKEN)
+        entries = EntriesService(self.session, actor, self.now, self.settings)
+        try:
+            async with self.session.begin_nested():
+                patient = await self._match_or_create(clinic, payload.patient, contacto)
+                await entries.add(patient.id, prefs, source="online")
+        except DomainError as error:
+            if error.detail != "already_waiting":
+                raise
+            # Sin datos del paciente: solo el teléfono público de la clínica para cambiar algo.
+            telefono = await self.session.scalar(
+                select(Clinic.contact_phone).where(Clinic.id == clinic.id)
+            )
+            raise DomainError(409, "already_waiting", extra={"clinic_phone": telefono}) from None
+        await self.session.commit()
+        return WaitlistJoined(
+            professional_id=prefs.professional_id,
+            date_from=prefs.date_from,
+            date_to=prefs.date_to,
+            time_from=prefs.time_from,
+            time_to=prefs.time_to,
+            weekdays=prefs.weekdays,
+            channel=contacto.channel,
+            warnings=list(contacto.warnings),  # type: ignore[arg-type]
         )
 
     def candidates(

@@ -45,6 +45,12 @@ class WhatsAppInbound(UUIDPrimaryKeyMixin, Base):
         ForeignKeyConstraint(
             ["clinic_id", "appointment_id"], ["appointment.clinic_id", "appointment.id"]
         ),
+        # C-12 (D8): respuesta a una oferta de la lista de espera.
+        ForeignKeyConstraint(
+            ["clinic_id", "waitlist_offer_id"],
+            ["waitlist_offer.clinic_id", "waitlist_offer.id"],
+            name="fk_whatsapp_inbound_offer",
+        ),
         CheckConstraint("routed_by IN ('context', 'phone')", name="routed_by"),
         CheckConstraint("btrim(provider_message_id) <> ''", name="provider_message_id_not_blank"),
         # Ventana de 24 h: último entrante del paciente en la clínica.
@@ -62,6 +68,7 @@ class WhatsAppInbound(UUIDPrimaryKeyMixin, Base):
     phone_number_id: Mapped[str] = mapped_column(Text, nullable=False)
     patient_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    waitlist_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     intent: Mapped[WhatsAppIntent] = mapped_column(WHATSAPP_INTENT, nullable=False)
     routed_by: Mapped[str] = mapped_column(Text, nullable=False)
     # Instante informado por Meta (`timestamp` del mensaje).

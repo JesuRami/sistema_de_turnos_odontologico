@@ -14,6 +14,7 @@ const TODOS: readonly UserRole[] = ["admin", "recepcion", "odontologo"];
 export const NAV: readonly NavItem[] = [
   { to: "/", label: "Agenda", roles: TODOS },
   { to: "/bloqueos", label: "Bloqueos", roles: TODOS },
+  { to: "/lista-de-espera", label: "Lista de espera", roles: TODOS },
   { to: "/pacientes/fusionar", label: "Fusionar pacientes", roles: ["admin", "recepcion"] },
   { to: "/politicas", label: "Políticas", roles: ["admin", "recepcion"] },
   { to: "/admin/profesionales", label: "Profesionales", roles: ["admin"] },

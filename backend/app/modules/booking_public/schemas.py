@@ -8,13 +8,14 @@ sillón, duración, estado, origen ni `clinic_id`. Las salidas exponen solo lo o
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Annotated, Literal
 
 from pydantic import (
     AwareDatetime,
     BaseModel,
     ConfigDict,
+    Field,
     StringConstraints,
 )
 
@@ -74,6 +75,31 @@ class BookingCreated(BaseModel):
     channel: Literal["whatsapp", "email"]
     warnings: list[Warning_]
     manage_url: str
+
+
+class WaitlistJoin(_Input):
+    """Anotación pública en la lista de espera (C-12, D7): profesional o "cualquiera" (`null`)."""
+
+    professional_id: uuid.UUID | None = None
+    date_from: date
+    date_to: date
+    time_from: time | None = None
+    time_to: time | None = None
+    weekdays: list[int] | None = Field(default=None, max_length=14)
+    patient: PatientInput
+
+
+class WaitlistJoined(BaseModel):
+    """Resumen de la anotación: sin ids internos ni datos del paciente."""
+
+    professional_id: uuid.UUID | None
+    date_from: date
+    date_to: date
+    time_from: time | None
+    time_to: time | None
+    weekdays: list[int] | None
+    channel: Literal["whatsapp", "email"]
+    warnings: list[Warning_]
 
 
 class AlternativeSlot(BaseModel):

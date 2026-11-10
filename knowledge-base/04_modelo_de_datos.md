@@ -90,6 +90,7 @@ consent/opt_out *───1 patient (canal whatsapp/email)
 - Entry: `id`, `clinic_id`, `patient_id`, `professional_id (nullable = cualquiera)`, `preferred_from`, `preferred_to`, `notes`, `status (waiting, offered, converted, expired, withdrawn)`, `created_at`.
 - Offer: `id`, `entry_id`, `appointment_slot (starts_at/ends_at propuestos)`, `expires_at`, `status (pending, accepted, declined, expired)`.
 - Constraints: una entry `waiting/offered` por (patient, professional_nullable) — evita duplicados de la misma persona en la misma cola.
+- **Implementado en C-12 (2026-11-08)**: `preferred_from/to` se modeló como período de fechas obligatorio (`date_from`, `date_to`) más franja horaria (`time_from`, `time_to`) y días (`weekdays`) opcionales (decisión del usuario). La entrada suma `source`, `prioritized_at`/`priority_reason`, `consecutive_expired` y `closed_reason`; la oferta, `professional_id`, `chair_id`, `mode (auto/manual)`, el turno de origen y el creado, y el estado `cancelled` (cerrada sin respuesta del paciente). La auditoría vive en `waitlist_event` (append-only). El envío de la oferta es un `reminder_job` del paso `waitlist_offer`.
 
 ### user / role
 - `user`: `id`, `clinic_id`, `email (unique por clínica)`, `password_hash (argon2)`, `role (enum: admin, recepcion, odontologo)`, `professional_id (nullable, obligatorio si role=odontologo)`, `active`, `last_login_at`.

@@ -23,12 +23,14 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.settings import Settings
 from app.models import (
+    Appointment,
     Clinic,
     Patient,
     WhatsAppOutboundReply,
@@ -37,6 +39,7 @@ from app.models import (
 )
 from app.modules.reminders.links import ManageLinkDisabled, build_manage_url
 from app.modules.reminders.senders.base import SendError, SessionTextSender
+from app.modules.reminders.senders.render import format_date, format_time
 from app.modules.reminders.senders.window import WINDOW, choose_message_kind
 
 logger = logging.getLogger("notifications.replies")
@@ -68,6 +71,9 @@ class _Ready:
     sender_id: str | None
     clinic_name: str
     clinic_phone: str | None
+    # C-12: horario del turno creado al aceptar una oferta (`offer_accepted`).
+    starts_at: datetime | None = None
+    tz: ZoneInfo | None = None
 
     def __repr__(self) -> str:
         return f"_Ready(reply={self.reply_id}, kind={self.kind.value})"
@@ -83,8 +89,20 @@ def render_reply(
     clinic_name: str,
     clinic_phone: str | None,
     manage_url: str | None,
+    starts_at: datetime | None = None,
+    tz: ZoneInfo | None = None,
 ) -> str:
-    """Texto de la respuesta; `change_link` exige el link del turno."""
+    """Texto de la respuesta; `change_link` y `offer_accepted` exigen el link del turno."""
+    texto = _render_offer(
+        kind,
+        clinic_name=clinic_name,
+        clinic_phone=clinic_phone,
+        manage_url=manage_url,
+        starts_at=starts_at,
+        tz=tz,
+    )
+    if texto is not None:
+        return texto
     if kind is WhatsAppReplyKind.CONFIRMED:
         return f"¡Listo! Tu turno en {clinic_name} quedó confirmado. Te esperamos."
     if kind is WhatsAppReplyKind.CHANGE_LINK:
@@ -110,6 +128,43 @@ def render_reply(
         "Listo, no te vamos a enviar más mensajes por WhatsApp. Si cambiás de idea, avisale a "
         "tu clínica."
     )
+
+
+def _render_offer(
+    kind: WhatsAppReplyKind,
+    *,
+    clinic_name: str,
+    clinic_phone: str | None,
+    manage_url: str | None,
+    starts_at: datetime | None,
+    tz: ZoneInfo | None,
+) -> str | None:
+    """Respuestas a una oferta de la lista de espera (C-12, D8); `None` si no es de oferta."""
+    if kind is WhatsAppReplyKind.OFFER_ACCEPTED:
+        if manage_url is None or starts_at is None or tz is None:
+            raise ManageLinkDisabled("falta el turno de la oferta aceptada")
+        return (
+            f"¡Listo! Tomaste el turno del {format_date(starts_at, tz)} a las "
+            f"{format_time(starts_at, tz)} en {clinic_name}. Para verlo o cambiarlo: {manage_url}"
+        )
+    if kind is WhatsAppReplyKind.OFFER_DECLINED:
+        return f"Listo, dejamos pasar ese turno. Seguís en la lista de espera de {clinic_name}."
+    if kind is WhatsAppReplyKind.OFFER_TAKEN:
+        return (
+            "Ese turno ya lo tomó otra persona. Seguís en la lista de espera con prioridad y te "
+            "avisamos cuando se libere otro."
+        )
+    if kind is WhatsAppReplyKind.OFFER_CLOSED:
+        return (
+            "Esa oferta ya no está disponible. Si necesitás un turno, comunicate con "
+            f"{_contacto(clinic_name, clinic_phone)}."
+        )
+    if kind is WhatsAppReplyKind.OFFER_PATIENT_BUSY:
+        return (
+            "Ya tenés otro turno a esa hora, así que no pudimos tomar este. Si querés cambiarlo, "
+            f"comunicate con {_contacto(clinic_name, clinic_phone)}."
+        )
+    return None
 
 
 def _backoff(settings: Settings, attempts: int) -> timedelta:
@@ -158,6 +213,8 @@ async def _claim(
                     Clinic.name,
                     Clinic.contact_phone,
                     Clinic.whatsapp_phone_number_id,
+                    Clinic.timezone,
+                    Appointment.starts_at,
                 )
                 .join(
                     Patient,
@@ -167,6 +224,13 @@ async def _claim(
                     ),
                 )
                 .join(Clinic, Clinic.id == WhatsAppOutboundReply.clinic_id)
+                .outerjoin(
+                    Appointment,
+                    and_(
+                        Appointment.clinic_id == WhatsAppOutboundReply.clinic_id,
+                        Appointment.id == WhatsAppOutboundReply.appointment_id,
+                    ),
+                )
                 .where(
                     WhatsAppOutboundReply.status == WhatsAppReplyStatus.PENDING,
                     WhatsAppOutboundReply.available_at <= now,
@@ -177,7 +241,7 @@ async def _claim(
             )
         ).all()
         listas: list[_Ready] = []
-        for respuesta, telefono, opt_in, clinica, contacto, numero in filas:
+        for respuesta, telefono, opt_in, clinica, contacto, numero, zona, inicio in filas:
             stats.claimed += 1
             abierta = choose_message_kind(respuesta.expires_at - WINDOW, now) == "session"
             if not abierta:
@@ -205,6 +269,8 @@ async def _claim(
                         sender_id=numero or compartido,
                         clinic_name=clinica,
                         clinic_phone=contacto,
+                        starts_at=inicio,
+                        tz=ZoneInfo(zona),
                     )
                 )
         return listas
@@ -265,9 +331,10 @@ async def run_replies(
     await _recover(factory, now(), settings, stats)
     for lista in await _claim(factory, now(), settings, stats):
         try:
+            con_link = (WhatsAppReplyKind.CHANGE_LINK, WhatsAppReplyKind.OFFER_ACCEPTED)
             url = (
                 build_manage_url(settings, lista.appointment_id)
-                if lista.kind is WhatsAppReplyKind.CHANGE_LINK and lista.appointment_id
+                if lista.kind in con_link and lista.appointment_id
                 else None
             )
             cuerpo = render_reply(
@@ -275,6 +342,8 @@ async def run_replies(
                 clinic_name=lista.clinic_name,
                 clinic_phone=lista.clinic_phone,
                 manage_url=url,
+                starts_at=lista.starts_at,
+                tz=lista.tz,
             )
         except ManageLinkDisabled:
             await _result(

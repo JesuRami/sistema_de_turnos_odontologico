@@ -10,7 +10,8 @@
   cuenta. El paso y el canal se leen del job (no cambian desde que se crea).
 - **Costo sobre eventos** (regla 8): la suma de `payload.cost_micros` de los eventos `sent` del
   rango. No se lee el estado mutable del job.
-- Filas: `created` + los pasos configurados de la clínica (y cualquier otro paso con envíos), por
+- Filas: `created` + los pasos configurados de la clínica + `waitlist_offer` (C-12) (y cualquier
+  otro paso con envíos), por
   canal `whatsapp` y `email`, con 0 si no hubo; más `totals`.
 
 Sin datos personales ni ids del proveedor en la salida.
@@ -26,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Clinic, DeliveryEvent, DeliveryEventType, ReminderChannel, ReminderJob
 from app.modules.reminders.scheduling import step_for_offset
-from app.modules.reminders.templates import STEP_CREATED
+from app.modules.reminders.templates import STEP_CREATED, STEP_WAITLIST_OFFER
 from app.modules.reports.schemas import WhatsAppReport, WhatsAppReportRow, WhatsAppReportTotals
 from app.modules.reports.service import ReportWindow
 
@@ -49,7 +50,12 @@ async def _configured_steps(session: AsyncSession, clinic_id: uuid.UUID) -> list
             continue
         if offset > 0:
             offsets.add(offset)
-    return [STEP_CREATED] + [step_for_offset(o) for o in sorted(offsets, reverse=True)]
+    # C-12: la oferta de la lista de espera siempre tiene su fila (costo atribuido, RN-WA-05).
+    return (
+        [STEP_CREATED]
+        + [step_for_offset(o) for o in sorted(offsets, reverse=True)]
+        + [STEP_WAITLIST_OFFER]
+    )
 
 
 async def whatsapp_report(

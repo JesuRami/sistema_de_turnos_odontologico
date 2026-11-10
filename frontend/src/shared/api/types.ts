@@ -114,7 +114,8 @@ export type AppointmentStatus =
   | "no_show"
   | "cancelled";
 
-export type AppointmentOrigin = "reception" | "online";
+/** `waitlist` (C-12): turno creado al aceptar una oferta de la lista de espera. */
+export type AppointmentOrigin = "reception" | "online" | "waitlist";
 
 export type CancellationReason = "paciente" | "profesional" | "clinica" | "bloqueo" | "otro";
 
@@ -409,4 +410,129 @@ export interface FollowUpRow {
 
 export interface FollowUpPage extends Page<FollowUpRow> {
   totals: Record<FollowUpReason, number>;
+}
+
+// ------------------------------------------------------------------ lista de espera (C-12)
+
+export type WaitingListStatus = "waiting" | "offered" | "converted" | "expired" | "withdrawn";
+export type WaitlistOfferStatus = "pending" | "accepted" | "declined" | "expired" | "cancelled";
+export type WaitlistOfferMode = "auto" | "manual";
+
+/** Paciente de una entrada: con contacto para admin/recepción, sin él para el odontólogo. */
+export interface WaitlistPatient {
+  id: Uuid;
+  full_name: string;
+  phone_e164?: string | null;
+  email?: string | null;
+}
+
+export interface PendingOffer {
+  id: Uuid;
+  professional_id: Uuid;
+  chair_id: Uuid;
+  starts_at: IsoDateTime;
+  ends_at: IsoDateTime;
+  expires_at: IsoDateTime;
+  mode: WaitlistOfferMode;
+}
+
+export interface WaitingListEntry {
+  id: Uuid;
+  status: WaitingListStatus;
+  source: "reception" | "online";
+  patient: WaitlistPatient;
+  professional_id: Uuid | null;
+  date_from: string;
+  date_to: string;
+  time_from: string | null;
+  time_to: string | null;
+  weekdays: number[] | null;
+  notes: string | null;
+  prioritized_at: IsoDateTime | null;
+  priority_reason: string | null;
+  consecutive_expired: number;
+  closed_reason: string | null;
+  created_at: IsoDateTime;
+  pending_offer: PendingOffer | null;
+}
+
+export interface EntryPreferences {
+  professional_id: Uuid | null;
+  date_from: string;
+  date_to: string;
+  time_from: string | null;
+  time_to: string | null;
+  weekdays: number[] | null;
+}
+
+export interface EntryCreate extends EntryPreferences {
+  patient_id: Uuid;
+  notes: string | null;
+}
+
+export type EntryUpdate = Partial<EntryPreferences> & { notes?: string | null };
+
+export interface WaitlistOffer {
+  id: Uuid;
+  entry_id: Uuid;
+  professional_id: Uuid;
+  chair_id: Uuid;
+  starts_at: IsoDateTime;
+  ends_at: IsoDateTime;
+  expires_at: IsoDateTime;
+  status: WaitlistOfferStatus;
+  mode: WaitlistOfferMode;
+  appointment_id: Uuid | null;
+  closed_reason: string | null;
+  responded_at: IsoDateTime | null;
+  created_at: IsoDateTime;
+}
+
+export interface AcceptedOffer {
+  offer: WaitlistOffer;
+  appointment_id: Uuid;
+  starts_at: IsoDateTime;
+  ends_at: IsoDateTime;
+}
+
+export interface SlotCandidate {
+  professional_id: Uuid;
+  chair_id: Uuid;
+  starts_at: IsoDateTime;
+  ends_at: IsoDateTime;
+}
+
+export interface SlotList {
+  timezone: string;
+  items: SlotCandidate[];
+}
+
+export interface ManualOfferCreate {
+  professional_id: Uuid;
+  chair_id: Uuid;
+  starts_at: IsoDateTime;
+  fifo_skip_reason?: string;
+}
+
+export interface WaitlistReportTotals {
+  created: number;
+  auto: number;
+  manual: number;
+  accepted: number;
+  declined: number;
+  expired: number;
+  cancelled: number;
+  conversion_pct: number | null;
+}
+
+export interface WaitlistReportRow extends WaitlistReportTotals {
+  professional_id: Uuid;
+  professional_name: string;
+}
+
+export interface WaitlistReport {
+  from_date: string;
+  to_date: string;
+  rows: WaitlistReportRow[];
+  totals: WaitlistReportTotals;
 }

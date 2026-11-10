@@ -281,6 +281,9 @@ def upgrade() -> None:
     _backfill(bind)
 
 
+_C09_STEPS = frozenset({"created", "t_72h", "t_24h", "t_3h"})
+
+
 def _backfill(bind: sa.engine.Connection) -> None:
     """Consentimiento previo y plantillas por defecto; idempotente."""
     bind.execute(
@@ -291,7 +294,10 @@ def _backfill(bind: sa.engine.Connection) -> None:
             "  SELECT 1 FROM consent c WHERE c.patient_id = p.id AND c.channel = 'whatsapp')"
         )
     )
-    for spec in DEFAULT_TEMPLATES:
+    # El catálogo es código vivo: C-12 le sumó el paso `waitlist_offer`, que esta revisión todavía
+    # no admite (su CHECK `step_format`). Se siembran solo los pasos de C-09; C-12 hace su propio
+    # backfill.
+    for spec in [t for t in DEFAULT_TEMPLATES if t.step in _C09_STEPS]:
         bind.execute(
             sa.text(
                 "INSERT INTO notification_template "

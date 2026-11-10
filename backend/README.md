@@ -722,6 +722,109 @@ el circuito completo (envío → `delivered`/`read` por webhook firmado → reen
 `alembic downgrade c10_whatsapp_channel` (se pierde el histórico de reenvíos; los jobs quedan como
 estaban).
 
+## Lista de espera (C-12)
+
+Huecos liberados por cancelación → oferta con vencimiento → turno (US-022, US-040, Flujo 5).
+Detalle completo: `openspec/changes/c-12-lista-de-espera/design.md`.
+
+### Entradas
+
+Una entrada (`waiting_list_entry`) es un paciente esperando un hueco con:
+
+- **Profesional** o "cualquiera" (`professional_id` nulo).
+- **Período** `date_from`–`date_to` (fechas locales de la clínica, inclusive, obligatorio): desde
+  hoy y hasta el horizonte de reserva (`PUBLIC_BOOKING_HORIZON_DAYS`, default 60). Al editar una
+  entrada ya empezada, `date_from` solo se valida si cambia.
+- **Franja** `time_from`–`time_to` (opcional, ambos o ninguno) y **días** `weekdays` (opcional,
+  0 = lunes … 6 = domingo, sin repetir). El hueco tiene que caer completo dentro.
+- **Nota** operativa de recepción (≤ 200, sin teléfono, email ni DNI → `422 invalid_note`).
+
+Estados: `waiting` → `offered` (tiene una oferta pendiente) → `converted`; o `expired`
+(`range_elapsed`, `no_response`) y `withdrawn`. RN-LE-01: la base impide dos entradas
+`waiting/offered` del mismo paciente y profesional, con "cualquiera" como un valor más (índice único
+parcial `NULLS NOT DISTINCT`); el duplicado responde `409 already_waiting` con el `entry_id` de la
+existente (al personal; nunca al público).
+
+| Endpoint | Admin / recepción | Odontólogo |
+|---|---|---|
+| `GET /api/waiting-list?status=&professional_id=&from=&to=&cursor=&limit=` | todo | sus entradas y "cualquiera", sin contacto ni notas |
+| `GET /api/waiting-list/{id}` | ✓ | idem |
+| `POST /api/waiting-list`, `PATCH /api/waiting-list/{id}` | ✓ | `403` |
+| `POST /api/waiting-list/{id}/withdraw` | ✓ (cierra su oferta pendiente) | `403` |
+| `POST` / `DELETE /api/waiting-list/{id}/priority` (`{"reason": …}`, 10–200, sin PII) | ✓ | `403` |
+| `GET /api/waiting-list/{id}/events` | ✓ | `403` |
+
+La cola se ordena por prioridad (`prioritized_at`, primero las prioritarias) y luego por antigüedad,
+con cursor opaco y `limit` 1–200. Filtro por profesional: incluye las de "cualquiera"; por período:
+entradas cuyo período intersecta `[from, to]`. Editar una entrada `offered` → `409 entry_offered`;
+editar o retirar una cerrada → `409 entry_closed`. Toda mutación escribe `waitlist_event`
+(append-only, sin PII: la nota se audita como `notes_changed`).
+
+### Evaluación al cancelar
+
+Toda cancelación de un turno futuro (recepción, link de gestión, WhatsApp) evalúa la lista **en la
+misma transacción** (`apply_transition` → `waiting_list.engine.evaluate_cancelled`); si la
+evaluación falla, la cancelación revierte. Reprogramar, `absent` y `no_show` no evalúan.
+
+1. **Ventana**: la oferta vence en `min(ahora + clinic.waitlist_offer_ttl_hours, inicio −
+   WAITLIST_MIN_LEAD_MINUTES)`. Si quedan menos de `WAITLIST_MIN_OFFER_WINDOW_MINUTES` no hay
+   oferta automática (recepción puede ofrecerlo a mano).
+2. **Hueco libre**: sin turnos vigentes del profesional o del sillón (con el buffer) ni bloqueos.
+3. **Candidata**: la primera entrada `waiting` compatible —profesional o "cualquiera", fecha local
+   en el período, hueco completo dentro de la franja y en sus días, paciente no archivado con un
+   canal utilizable (WhatsApp con opt-in o email sin baja), sin otro turno superpuesto y sin una
+   oferta previa del mismo hueco— en el orden de la cola, con `FOR UPDATE SKIP LOCKED`: la
+   cancelación nunca espera a otra transacción.
+4. **Oferta**: `waitlist_offer` `pending`, entrada `offered`, evento `offer_created` y un
+   `reminder_job` del paso `waitlist_offer` disponible ya (WhatsApp si hay opt-in, si no email).
+   El motor de recordatorios lo envía con la plantilla `hueco_lista_espera_v1`, botones
+   "Tomarlo"/"Paso" y el link `/o/{token}`; lo cancela (`offer_closed`) si la oferta ya no está
+   pendiente al reclamarlo o al enviarlo.
+
+### Respuestas, vencimiento y rotación
+
+| Acción | Efecto |
+|---|---|
+| Aceptar (`POST /api/waiting-list/offers/{id}/accept`, link o botón) | Turno `confirmed` con origen `waitlist` por `AppointmentsService.book` (mismas reglas que recepción, nunca sobreturno); oferta `accepted`, entrada `converted`; las ofertas pendientes de otras entradas para el mismo hueco quedan `cancelled (slot_taken)` |
+| Aceptar con el hueco ocupado | Oferta `cancelled`, entrada `waiting` **prioritaria** (`slot_lost`), confirmado antes de responder `409 slot_taken` con ≤ 3 alternativos (solo inicio y fin) |
+| Aceptar vencida / cerrada / con otro turno a esa hora | `409 offer_expired` / `409 offer_closed` / `409 patient_busy` (la oferta sigue pendiente) |
+| Rechazar (`…/decline`, `{"leave_list": true}` para salir) | Oferta `declined`, entrada `waiting` (o `withdrawn`) sin perder lugar, contador de vencimientos a 0; el hueco rota |
+| Retirar (`…/cancel`, recepción) | Oferta `cancelled (withdrawn_by_staff)`, entrada `waiting`; el hueco rota |
+| Vencer (tick `waitlist_tick` del worker, a los 30 s de cada minuto) | Oferta `expired`, entrada `waiting` con un vencimiento más; al llegar a `WAITLIST_MAX_CONSECUTIVE_EXPIRED` (3) la entrada queda `expired (no_response)`; el hueco rota. El tick también vence las entradas con `date_to` pasado (`range_elapsed`) |
+
+Orden de locks: oferta → entrada → profesional → sillón; las ofertas hermanas se cierran con
+`SKIP LOCKED`. Dos aceptaciones del mismo hueco dejan un solo turno. Ninguna automatización mueve
+un turno existente (RN-GL-02).
+
+### Oferta manual y prioridad
+
+- `GET /api/waiting-list/{id}/slots?from=&to=` (≤ 14 días): huecos libres de las reglas vigentes que
+  respetan profesional, período, franja y días de la entrada.
+- `POST /api/waiting-list/{id}/offers` (`professional_id`, `chair_id`, `starts_at`): la duración es
+  la de la regla; fuera de horario `422 outside_schedule`, ocupado `409 slot_taken`, entrada con
+  oferta `409 entry_offered`. Si otra entrada compatible va antes en la cola, exige
+  `fifo_skip_reason` (10–200, sin PII; si no, `422 fifo_skip_reason_required`) y el evento registra
+  `fifo_skip=true`.
+- `GET /api/waiting-list/offers?status=&from=&to=` lista las ofertas por fecha de creación.
+
+### Probar en desarrollo
+
+Con `REMINDER_WHATSAPP_PROVIDER=fake`: anotar a un paciente con opt-in para un profesional,
+cancelar desde la agenda un turno compatible y ver la oferta en `GET /api/waiting-list`; el log del
+worker muestra el envío `hueco_lista_espera_v1`. El test `tests/modules/test_waitlist_events.py`
+recorre cancelación → oferta → vencimiento → rotación → aceptación.
+
+### Revisión `c12_waiting_list` (C-12)
+
+Tablas nuevas `waiting_list_entry`, `waitlist_offer` y `waitlist_event` (append-only), con sus
+enums; valores nuevos en `appointment_origin`, `whatsapp_intent` y `whatsapp_reply_kind`
+(`autocommit_block`); `reminder_job.appointment_id` pasa a nullable con `waitlist_offer_id` y los
+CHECK `one_target`/`offer_step`; paso `waitlist_offer` en `step_format`; `waitlist_offer_id` en
+`whatsapp_inbound` y `whatsapp_outbound_reply`; índice único `uq_reminder_job_offer_channel`
+`CONCURRENTLY`; backfill de las dos plantillas de oferta en las clínicas existentes. Constraints
+sobre tablas con filas `NOT VALID` → `VALIDATE`. Downgrade: `alembic downgrade
+c11_reminder_timeline` (borra jobs y plantillas de oferta; los valores de enum quedan).
+
 ## Seed del tenant inicial
 
 Crea una clínica, un admin con cambio de contraseña obligatorio, el sillón

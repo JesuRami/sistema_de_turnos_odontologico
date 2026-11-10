@@ -8,19 +8,20 @@ Define la exportación completa de datos de la agenda (turnos, pacientes y audit
 
 ### Requirement: Exportación completa de datos de agenda
 
-`GET /api/exports/full?format=csv|json` SHALL devolver un ZIP con tres
-archivos de la clínica del admin: turnos, pacientes operativos y eventos de
-auditoría de turnos. SHALL leerse por lotes. Solo admin; otros roles `403
+`GET /api/exports/full?format=csv|json` SHALL devolver un ZIP con seis
+archivos de la clínica del admin: turnos, pacientes operativos, eventos de
+auditoría de turnos, entradas de la lista de espera, ofertas y eventos de la
+lista de espera. SHALL leerse por lotes. Solo admin; otros roles `403
 forbidden_role`. `format` fuera de `csv|json` SHALL responder `422
 invalid_format`.
 
 #### Scenario: Export completo
 - **WHEN** el admin exporta en CSV
-- **THEN** el ZIP trae `appointments.csv`, `patients.csv` y `appointment_events.csv` con todas las filas de su clínica
+- **THEN** el ZIP trae `appointments.csv`, `patients.csv`, `appointment_events.csv`, `waiting_list_entries.csv`, `waitlist_offers.csv` y `waitlist_events.csv` con todas las filas de su clínica
 
 #### Scenario: Formato JSON
 - **WHEN** el admin exporta en JSON
-- **THEN** el ZIP trae los mismos tres conjuntos como `.json`
+- **THEN** el ZIP trae los mismos seis conjuntos como `.json`
 
 #### Scenario: Sin datos de otra clínica
 - **WHEN** existen datos de otra clínica
@@ -37,6 +38,10 @@ invalid_format`.
 #### Scenario: Recepción exporta
 - **WHEN** recepción llama el endpoint
 - **THEN** responde `403 forbidden_role`
+
+#### Scenario: Lista de espera vacía
+- **WHEN** la clínica no tiene entradas en la lista de espera
+- **THEN** los tres archivos de la lista vienen solo con encabezados (CSV) o vacíos (JSON)
 
 ### Requirement: Traza de cada exportación
 

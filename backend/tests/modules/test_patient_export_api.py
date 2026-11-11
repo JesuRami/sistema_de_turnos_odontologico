@@ -102,6 +102,7 @@ async def test_admin_exporta_los_datos_del_paciente_y_queda_auditado(
     assert auditoria["counts"]["appointments"] == 1
     # Regla 13: el evento no lleva datos personales.
     assert NOMBRE not in json.dumps(auditoria)
+    assert paciente.phone_e164 is not None
     assert paciente.phone_e164 not in json.dumps(auditoria)
 
 

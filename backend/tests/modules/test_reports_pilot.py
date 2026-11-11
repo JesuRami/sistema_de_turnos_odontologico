@@ -152,7 +152,7 @@ async def test_confirmacion_antes_de_t_menos_24h(
     app_client: httpx.AsyncClient, db_session: AsyncSession, redis_client: Redis, settings: Settings
 ) -> None:
     escena = await _escena(db_session, redis_client, settings)
-    pend = {"status": AppointmentStatus.PENDING, "origin": AppointmentOrigin.ONLINE}
+    pend: dict[str, Any] = {"status": AppointmentStatus.PENDING, "origin": AppointmentOrigin.ONLINE}
     a_tiempo = await escena.turno(**pend)
     tarde = await escena.turno(**pend)
     reserva_de_ultimo_momento = await escena.turno(**pend)

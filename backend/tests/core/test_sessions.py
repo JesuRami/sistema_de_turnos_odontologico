@@ -51,8 +51,7 @@ async def test_redis_solo_guarda_el_hash_del_secreto(redis_client: Redis) -> Non
         tipo = await redis_client.type(clave)
         if tipo == "hash":
             valores.extend(
-                str(v)
-                for v in (await redis_client.hgetall(clave)).values()  # type: ignore[misc]
+                str(v) for v in (await redis_client.hgetall(clave)).values()  # type: ignore[misc]
             )
         elif tipo == "set":
             valores.extend(str(v) for v in await redis_client.smembers(clave))  # type: ignore[misc]

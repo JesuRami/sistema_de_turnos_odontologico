@@ -29,7 +29,8 @@ PARES = 10  # profesional + sillón
 DIAS = 7
 TURNOS_POR_DIA = 8  # 10 × 7 × 8 = 560 ≥ 500
 
-_INSERT_SEMANA = text("""
+_INSERT_SEMANA = text(
+    """
     INSERT INTO appointment (clinic_id, patient_id, professional_id, chair_id, starts_at,
                              ends_at, occupied_until, status, origin, created_by_user_id)
     SELECT :clinic_id, :patient_id, r.professional_id, r.chair_id,
@@ -43,9 +44,11 @@ _INSERT_SEMANA = text("""
            FROM generate_series(0, :dias - 1) d, generate_series(0, :por_dia - 1) k
          ) s
     LIMIT 500
-    """)
+    """
+)
 
-_INSERT_RUIDO = text("""
+_INSERT_RUIDO = text(
+    """
     INSERT INTO appointment (clinic_id, patient_id, professional_id, chair_id, starts_at,
                              ends_at, occupied_until, status, origin, created_by_user_id,
                              cancelled_at, cancellation_reason)
@@ -55,7 +58,8 @@ _INSERT_RUIDO = text("""
            CAST(:lunes AS timestamptz) + make_interval(hours => n, mins => 30),
            'cancelled', 'reception', :user_id, now(), 'otro'
     FROM generate_series(-10000, 9999) n
-    """)
+    """
+)
 
 
 async def test_semana_de_500_turnos_en_una_pagina_y_rapida(

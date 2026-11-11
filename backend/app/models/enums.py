@@ -265,3 +265,66 @@ VIGENT_STATUSES = (
     AppointmentStatus.CONFIRMED,
     AppointmentStatus.PRESENT,
 )
+
+
+# --------------------------------------------------------------------------- C-15 clínica
+
+
+class ToothSurface(enum.StrEnum):
+    """Cara de una pieza FDI (C-15). `O` es oclusal (posteriores) o incisal (anteriores)."""
+
+    M = "M"
+    D = "D"
+    O = "O"  # noqa: E741 - nombre clínico estándar de la cara
+    V = "V"
+    L = "L"
+    W = "W"  # pieza completa
+
+
+class EvolutionKind(enum.StrEnum):
+    """Entrada original o corrección (que nunca reescribe a la original, Ley 26.529)."""
+
+    ENTRY = "entry"
+    CORRECTION = "correction"
+
+
+class AttachmentKind(enum.StrEnum):
+    """Tipo clínico declarado de un adjunto (el tipo de contenido se verifica aparte)."""
+
+    XRAY = "xray"
+    PHOTO = "photo"
+    DOCUMENT = "document"
+    OTHER = "other"
+
+
+class PlanDecision(enum.StrEnum):
+    """Decisión registrada sobre una versión de presupuesto (append-only)."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+class ClinicalAction(enum.StrEnum):
+    """Acción auditada en `clinical_access_event` (lecturas y escrituras clínicas)."""
+
+    RECORD_OPEN = "record_open"
+    RECORD_READ = "record_read"
+    ANAMNESIS_WRITE = "anamnesis_write"
+    ANAMNESIS_READ = "anamnesis_read"
+    ODONTOGRAM_WRITE = "odontogram_write"
+    ODONTOGRAM_READ = "odontogram_read"
+    ODONTOGRAM_HISTORY_READ = "odontogram_history_read"
+    EVOLUTION_WRITE = "evolution_write"
+    EVOLUTION_CORRECT = "evolution_correct"
+    EVOLUTION_READ = "evolution_read"
+    ATTACHMENT_UPLOAD = "attachment_upload"
+    ATTACHMENT_LIST = "attachment_list"
+    ATTACHMENT_DOWNLOAD = "attachment_download"
+    ATTACHMENT_REMOVE = "attachment_remove"
+    PLAN_WRITE = "plan_write"
+    PLAN_VERSION_WRITE = "plan_version_write"
+    PLAN_DECISION = "plan_decision"
+    PLAN_LIST = "plan_list"
+    PLAN_READ = "plan_read"
+    PLAN_PDF_EXPORT = "plan_pdf_export"
+    ACCESS_LOG_READ = "access_log_read"

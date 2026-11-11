@@ -38,6 +38,7 @@ from sqlalchemy.pool import NullPool
 from app.core.database import async_database_url
 from app.core.security import hash_password
 from app.models import Chair, Clinic, Professional, ScheduleRule, User, UserRole
+from app.modules.clinical.catalog import seed_clinical_catalog
 from app.modules.reminders.seeding import seed_default_templates
 
 SEED_VARS = ("SEED_CLINIC_SLUG", "SEED_CLINIC_NAME", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD")
@@ -127,6 +128,8 @@ async def seed_clinic(session: AsyncSession, config: SeedConfig) -> bool:
     )
     # Siempre (idempotente): repone una plantilla faltante sin pisar las que el admin editó.
     await seed_default_templates(session, clinic_id)
+    # C-15: catálogo inicial (provisional) del odontograma; tampoco pisa lo existente.
+    await seed_clinical_catalog(session, clinic_id)
     professional: Professional | None = None
     if created_id is not None:
         chair = Chair(clinic_id=clinic_id, name=SAMPLE_CHAIR_NAME, active=True)

@@ -147,3 +147,42 @@ def test_el_chequeo_detecta_un_modelo_relajado_fuera_de_la_excepcion() -> None:
         assert "app.modules.temporal_regla_2.Relajado" in _infractores(_EXCEPCION_REGLA_2)
     finally:
         del sys.modules[modulo.__name__]
+
+
+# ------------------------------------------------------------------ C-15 (D4): bordes clínicos
+
+_CAMPOS_DEL_SERVIDOR = {
+    "professional_id",
+    "created_by_user_id",
+    "signed_at",
+    "content_sha256",
+    "total_cents",
+    "subtotal_cents",
+    "clinic_id",
+    "storage_key",
+}
+
+
+def _entradas_clinicas() -> list[type]:
+    from app.modules.clinical.schemas import StrictInput
+
+    return [m for m in _modelos_de_la_app() if issubclass(m, StrictInput) and m is not StrictInput]
+
+
+def test_todas_las_entradas_clinicas_prohiben_campos_extra() -> None:
+    entradas = _entradas_clinicas()
+
+    assert len(entradas) >= 8
+    assert [m.__name__ for m in entradas if m.model_config.get("extra") != "forbid"] == []  # type: ignore[attr-defined]
+
+
+def test_ninguna_entrada_clinica_acepta_campos_que_fija_el_servidor() -> None:
+    """Escenario "Autoría no suplantable por cuerpo" (también reloj, hash y totales)."""
+    expuestos = {
+        f"{m.__name__}.{campo}"
+        for m in _entradas_clinicas()
+        for campo in m.model_fields  # type: ignore[attr-defined]
+        if campo in _CAMPOS_DEL_SERVIDOR
+    }
+
+    assert expuestos == set()

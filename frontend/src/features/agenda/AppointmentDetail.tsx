@@ -6,6 +6,7 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, apiFetch } from "../../shared/api/client";
 import { messageFor } from "../../shared/api/errors";
 import { queryKeys } from "../../shared/api/queries";
@@ -209,6 +210,16 @@ function AppointmentDetail({
             )}
           </div>
         </div>
+      )}
+
+      {/* C-15: historia clínica solo para odontólogo y admin (recepción no accede, regla de 03). */}
+      {(context.role === "odontologo" || context.role === "admin") && (
+        <Link
+          to={`/pacientes/${appointment.patient.id}/historia-clinica`}
+          className="mt-3 inline-block text-sm underline"
+        >
+          Historia clínica
+        </Link>
       )}
 
       <ReminderTimeline

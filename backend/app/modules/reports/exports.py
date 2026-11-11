@@ -254,3 +254,42 @@ def iter_file(archivo: IO[bytes], chunk: int = 64 * 1024) -> Iterator[bytes]:
             yield trozo
     finally:
         archivo.close()
+
+
+# C-15 (D9, Decisión 11): la historia clínica nunca sale por las exportaciones de C-13/C-14
+# (portabilidad clínica Ley 27.706 = follow-up). Toda tabla con `clinic_id` debe estar en `TABLES`
+# o acá; una tabla nueva sin clasificar rompe `test_exports_exclude_clinical.py`.
+CLINICAL_TABLES: tuple[str, ...] = (
+    "clinical_record",
+    "anamnesis_version",
+    "odontogram_condition",
+    "odontogram_event",
+    "clinical_evolution",
+    "clinical_attachment",
+    "clinical_attachment_removal",
+    "treatment_plan",
+    "treatment_plan_version",
+    "treatment_plan_item",
+    "treatment_plan_decision",
+    "clinical_access_event",
+)
+# Operativas que no forman parte del set exportado (configuración, auditorías internas, cola de
+# recordatorios y canal WhatsApp), sin cambio respecto de C-13/C-14.
+OPERATIONAL_NOT_EXPORTED: tuple[str, ...] = (
+    "agenda_config_event",
+    "auth_event",
+    "block",
+    "chair",
+    "consent",
+    "delivery_event",
+    "notification_template",
+    "patient_merge",
+    "professional",
+    "reminder_job",
+    "reminder_manual_resend",
+    "schedule_rule",
+    "user",
+    "whatsapp_inbound",
+    "whatsapp_outbound_reply",
+)
+EXCLUDED_FROM_EXPORT: tuple[str, ...] = CLINICAL_TABLES + OPERATIONAL_NOT_EXPORTED

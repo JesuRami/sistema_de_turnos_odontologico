@@ -36,6 +36,16 @@ _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 QUIET_PATHS = frozenset({"/health", "/ready"})
 # Documentación interactiva (solo fuera de prod): necesita scripts/estilos de su CDN.
 _DOCS_PREFIXES = ("/docs", "/redoc", "/openapi.json")
+# C-15 (D4): toda respuesta clínica, también un error, es `no-store` (datos de salud).
+_CLINICAL_PATH_RE = re.compile(
+    r"^/api/(clinical-records/|odontogram/|patients/[^/]+/clinical-record/?$)"
+)
+
+
+def is_clinical_path(path: str) -> bool:
+    """Ruta de la historia clínica (ficha, anamnesis, odontograma, evoluciones, adjuntos...)."""
+    return _CLINICAL_PATH_RE.match(path) is not None
+
 
 access_logger = logging.getLogger("http.access")
 error_logger = logging.getLogger("http.error")
@@ -109,6 +119,8 @@ def security_headers(*, hsts_seconds: int, path: str = "") -> list[tuple[str, st
         headers.append(("content-security-policy", "default-src 'none'; frame-ancestors 'none'"))
     if hsts_seconds > 0:
         headers.append(("strict-transport-security", f"max-age={hsts_seconds}; includeSubDomains"))
+    if is_clinical_path(path):
+        headers.append(("cache-control", "no-store"))
     return headers
 
 

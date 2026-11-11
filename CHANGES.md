@@ -373,7 +373,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 ---
 
 ### [C-14] `hardening-piloto`
-- **Estado**: `[x]` archivado (2026-11-10 → openspec/changes/archive/2026-11-10-c-14-hardening-piloto/)
+- **Estado**: `[x]` completado y archivado (2026-11-11 → openspec/changes/archive/2026-11-11-c-14-hardening-piloto/)
 - **Scope**: Endurecimiento para piloto en 1-2 clínicas amigas (criterio: NO cadenas multi-sede — IN-02)
   - Headers seguros + CORS restrictivo + rate-limit global y estricto en booking/webhooks (Redis); validación Pydantic v2 en todos los bordes; E.164 con phonenumbers; logs sin PII (teléfonos enmascarados)
   - Backups cifrados Postgres con PITR; `MANAGE_TOKEN_TTL_H`, `BOOKING_RATE_LIMIT` calibrados; alerta de costo WhatsApp mensual por umbral (sin corte automático en v1.0)
@@ -401,7 +401,7 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
 > Orden propuesto (a confirmar por Dueño + PO — pregunta Baja en `10`): clínica → cobros → ARCA → obras sociales → escala.
 
 ### [C-15] `historia-clinica-odontograma`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado y archivado (`openspec/changes/archive/2026-11-11-c-15-historia-clinica-odontograma/`). Pendientes registrados: validación del catálogo de estados y anamnesis por un odontólogo piloto (task 0.3, catálogo provisorio en `backend/app/modules/clinical/catalog.py`); Playwright `e2e/clinical-circuit.spec.ts` y verificación de adjuntos desde el contenedor (tasks 6.5, 10.1, 10.5, no corridos); decisión de presupuesto y presupuestos multi-fase en la UI (a C-16).
 - **Scope**: Ficha clínica + anamnesis + odontograma FDI por cara + adjuntos + evoluciones + planes/presupuestos por fases en PDF (engancha en `patient_id`/`appointment_id` estables de v1.0, sin migración rompiente — DD-02)
   - Odontograma permanente/temporal por cara; periodontograma y ortodoncia/cefalometría como extensión posterior; consentimientos con firma Ley 25.506; ReNaPDiS/HL7 FHIR donde aplique
   - Recepción no accede a datos clínicos (regla transversal heredada de `03`)
@@ -461,3 +461,5 @@ Paso │ Agente A (Backend Core)      │ Agente B (Backend Aux)         │ Age
   - `docs/discovery/discovery.md` §D3 Para etapas posteriores
 
 ---
+
+> **Follow-ups de C-15** (ver `docs/clinica/README.md`): periodontograma, ortodoncia, firma digital Ley 25.506, HL7 FHIR/portabilidad clínica, seguimiento de ítems del plan, edición del catálogo de estados, antivirus/S3 de adjuntos.

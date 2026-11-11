@@ -26,3 +26,5 @@ Criterio de selección (IN-02): 1-2 clínicas amigas, un solo consultorio/sede. 
 | Confirmación antes de T−24 h | ≥ 60 % |
 | Huecos recuperados por lista de espera | ≥ 10 % |
 | Reservas online | ≥ 30 % a 90 días |
+
+- Historia clínica (C-15): política de acceso, retención, firma simple y backup del volumen de adjuntos en [`docs/clinica/`](../clinica/README.md).

@@ -30,6 +30,7 @@ from app.modules.appointments.router import router as appointments_router
 from app.modules.auth.router import router as auth_router
 from app.modules.booking_public.router import router as booking_public_router
 from app.modules.clinic.router import router as clinic_router
+from app.modules.clinical.router import router as clinical_router
 from app.modules.manage.router import router as manage_router
 from app.modules.notifications.router import WEBHOOK_PATH
 from app.modules.notifications.router import router as notifications_router
@@ -157,6 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         notifications_router,
         users_router,
         reports_router,
+        clinical_router,
     ):
         app.include_router(router)
 

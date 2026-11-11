@@ -1,6 +1,9 @@
-# Spec delta — platform/hardening (C-14)
+# platform/hardening Specification
 
-## ADDED Requirements
+## Purpose
+TBD - created by archiving change c-14-hardening-piloto. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Envolvente de errores sin trazas ni PII
 Toda respuesta de error SHALL ser `{"detail": <código>}`; los 5xx SHALL incluir `request_id`.
@@ -19,6 +22,21 @@ La app SHALL conectarse con un usuario miembro de `app_writer`, sin `DELETE` en 
 
 ### Requirement: Métricas del piloto
 `GET /api/reports/pilot` SHALL devolver solapamientos (meta 0), ausentismo vs. línea base, confirmación antes de T−24 h, huecos recuperados y proporción online, calculados sobre eventos.
+#### Scenario: confirmación antes de T−24 h
+- WHEN un turno `online` se confirma 30 h antes de `starts_at` y otro creado con 10 h de anticipación se confirma
+- THEN la métrica de confirmación cuenta el primero y excluye el segundo del denominador
+#### Scenario: recepción sin acceso a métricas
+- WHEN un usuario con rol recepción llama `GET /api/reports/pilot`
+- THEN responde `403`
 
 ### Requirement: Resiliencia de recepción ante cortes (SU-06)
 Sin red, confirmación y asistencia SHALL quedar en una cola en memoria y reenviarse al volver; la agenda del día SHALL poder imprimirse.
+#### Scenario: confirmación sin red
+- WHEN recepción marca un turno como confirmado sin conexión
+- THEN la acción queda en la cola en memoria (nada en `localStorage`) y se reenvía al volver la red, hasta 5 intentos en 30 min
+#### Scenario: alta sin red
+- WHEN recepción intenta crear o cancelar un turno sin conexión
+- THEN la acción no entra en la cola de reintentos
+#### Scenario: agenda imprimible
+- WHEN recepción abre `/agenda/imprimir`
+- THEN ve la agenda del día en formato imprimible

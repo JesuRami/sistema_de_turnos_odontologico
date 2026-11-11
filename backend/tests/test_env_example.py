@@ -58,6 +58,9 @@ def test_claves_requeridas_presentes_en_ejemplo() -> None:
         "DB_IDLE_TX_TIMEOUT_MS",
         "GLOBAL_RATE_LIMIT_BACKEND",
         "WEBHOOK_INVALID_SIGNATURE_RATE_LIMIT",
+        # C-15: almacenamiento de adjuntos clínicos.
+        "CLINICAL_STORAGE_ROOT",
+        "CLINICAL_MAX_ATTACHMENT_BYTES",
         "MIGRATION_DATABASE_URL",
         "APP_DB_USER",
         "APP_DB_PASSWORD",

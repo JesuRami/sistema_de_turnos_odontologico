@@ -181,3 +181,8 @@ riesgoso:
    dev falla igual que prod si algo intenta un `DELETE`). El servicio `migrate` lo
    crea o le actualiza la clave desde el entorno después de migrar; en dev la clave
    tiene un default de ejemplo y en prod `compose.prod.yaml` la exige.
+
+### Resolución (2026-11-11)
+
+El usuario aprobó las 8 Open Decisions con sus defaults, sin cambios. La 7 (retención) sigue
+pendiente de confirmación del asesor legal.

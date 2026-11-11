@@ -28,6 +28,22 @@ TABLAS = {
     "waitlist_offer",
     "waitlist_event",
 }
+# C-15: historia clínica (solo tablas nuevas).
+TABLAS_C15 = {
+    "clinical_record",
+    "anamnesis_version",
+    "odontogram_condition",
+    "odontogram_event",
+    "clinical_evolution",
+    "clinical_attachment",
+    "clinical_attachment_removal",
+    "treatment_plan",
+    "treatment_plan_version",
+    "treatment_plan_item",
+    "treatment_plan_decision",
+    "clinical_access_event",
+}
+TABLAS = TABLAS | TABLAS_C15
 INDICES = {
     "uq_clinic_slug",
     "ix_professional_clinic_id_active",
@@ -70,6 +86,13 @@ INDICES = {
     "ix_waitlist_offer_due",
     "ix_waitlist_event_report",
     "uq_reminder_job_offer_channel",
+    "uq_clinical_record_clinic_id_patient_id",
+    "ix_odontogram_event_projection",
+    "ix_clinical_evolution_record_signed",
+    "ix_clinical_evolution_record_id_appointment_id",
+    "ix_clinical_attachment_record_created",
+    "ix_clinical_access_event_record_created",
+    "ix_treatment_plan_record_created",
 }
 ENUMS = {
     "user_role",
@@ -93,6 +116,11 @@ ENUMS = {
     "waiting_list_status",
     "waitlist_offer_status",
     "waitlist_event_type",
+    "tooth_surface",
+    "evolution_kind",
+    "attachment_kind",
+    "plan_decision",
+    "clinical_action",
 }
 
 
@@ -948,3 +976,77 @@ def test_ciclo_de_c14_con_datos_de_c12(temp_database: str) -> None:
 
     command.upgrade(cfg, "head")
     assert _privilegios(temp_database, "appointment") == {"SELECT", "INSERT", "UPDATE"}
+
+
+def _esquema_de(url: str, tablas: set[str]) -> list[tuple[object, ...]]:
+    return [fila for fila in _esquema(url) if str(fila[0]) in tablas]
+
+
+def test_ciclo_de_c15_con_datos_de_c14(temp_database: str) -> None:
+    """C-15 (task 1.5): `upgrade` → `downgrade c14` → `upgrade` con clínicas y turnos existentes.
+
+    Solo crea objetos nuevos: ninguna tabla existente cambia (columnas y constraints idénticos).
+    Siembra el catálogo para las clínicas existentes y deja las tablas append-only sin `UPDATE`
+    para `app_writer`. El downgrade elimina tablas y enums nuevos y conserva los datos previos.
+    """
+    cfg = alembic_config()
+    command.upgrade(cfg, "c14_hardening_pilot")
+    _ejecutar(
+        temp_database,
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia', 'clinica-c15-a')", ()),
+        ("INSERT INTO clinic (name, slug) VALUES ('Clínica Ficticia B', 'clinica-c15-b')", ()),
+        (
+            "INSERT INTO patient (clinic_id, full_name, phone_e164) "
+            "SELECT id, 'Paciente Prueba Ficticio', '+5491155500001' FROM clinic",
+            (),
+        ),
+    )
+    previas = TABLAS - TABLAS_C15
+    antes = _esquema_de(temp_database, previas)
+
+    command.upgrade(cfg, "head")
+    assert TABLAS_C15 <= _tablas(temp_database)
+    assert _esquema_de(temp_database, previas) == antes
+    assert fetch_rows(
+        "SELECT c.slug, count(oc.id) FROM clinic c "
+        "JOIN odontogram_condition oc ON oc.clinic_id = c.id GROUP BY c.slug ORDER BY c.slug",
+        temp_database,
+    ) == [("clinica-c15-a", 11), ("clinica-c15-b", 11)]
+    assert _privilegios(temp_database, "clinical_evolution") == {"SELECT", "INSERT"}
+    assert _privilegios(temp_database, "clinical_access_event") == {"SELECT", "INSERT"}
+    assert _privilegios(temp_database, "odontogram_condition") == {"SELECT", "INSERT", "UPDATE"}
+    triggers = fetch_rows(
+        "SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal "
+        "AND tgname LIKE 'trg_%_no_mutate' AND tgrelid::regclass::text = ANY("
+        "ARRAY['clinical_record','anamnesis_version','odontogram_event','clinical_evolution',"
+        "'clinical_attachment','clinical_attachment_removal','treatment_plan',"
+        "'treatment_plan_version','treatment_plan_item','treatment_plan_decision',"
+        "'clinical_access_event'])",
+        temp_database,
+    )
+    assert triggers == [(11,)]
+    _ejecutar(
+        temp_database,
+        (
+            'INSERT INTO "user" (clinic_id, email, password_hash, role) '
+            "SELECT id, 'admin.' || slug || '@example.com', '$argon2id$relleno', 'admin' "
+            "FROM clinic",
+            (),
+        ),
+        (
+            "INSERT INTO clinical_record (clinic_id, patient_id, created_by_user_id) "
+            'SELECT p.clinic_id, p.id, u.id FROM patient p JOIN "user" u '
+            "ON u.clinic_id = p.clinic_id",
+            (),
+        ),
+    )
+
+    command.downgrade(cfg, "c14_hardening_pilot")
+    assert _tablas(temp_database) & TABLAS_C15 == set()
+    assert {"tooth_surface", "clinical_action", "evolution_kind"} & _enums(temp_database) == set()
+    assert _esquema_de(temp_database, previas) == antes
+    assert fetch_rows("SELECT count(*) FROM patient", temp_database) == [(2,)]
+
+    command.upgrade(cfg, "head")
+    assert fetch_rows("SELECT count(*) FROM odontogram_condition", temp_database) == [(22,)]
+    assert fetch_rows("SELECT count(*) FROM clinical_record", temp_database) == [(0,)]

@@ -25,6 +25,7 @@ from app.models import (
     Appointment,
     AppointmentEvent,
     AppointmentEventType,
+    ClinicalRecord,
     Patient,
     PatientMerge,
 )
@@ -65,6 +66,18 @@ async def merge_patients(
     # Ajeno, inexistente, archivado o ya fusionado: misma respuesta (no revela existencia).
     if source is None or target is None or source.archived_at or target.archived_at:
         raise DomainError(422, "invalid_merge")
+    # C-15 (D9, Decisión 10): la unificación de historias clínicas está diferida. Con el
+    # `FOR UPDATE` de arriba, una apertura de ficha concurrente (que toma `FOR SHARE`) o ya está
+    # confirmada y se ve acá, o espera y verá al paciente archivado (`409 patient_archived`).
+    con_ficha = await session.scalar(
+        select(ClinicalRecord.id)
+        .where(
+            ClinicalRecord.clinic_id == principal.clinic_id, ClinicalRecord.patient_id == source_id
+        )
+        .limit(1)
+    )
+    if con_ficha is not None:
+        raise DomainError(409, "patient_has_clinical_record")
 
     completados = [c for c in _FILLABLE if getattr(target, c) is None and getattr(source, c)]
     for campo in completados:

@@ -115,7 +115,9 @@ async function send(path: string, options: RequestOptions, token: string | null)
   const headers: Record<string, string> = {
     Accept: options.responseType === "blob" ? "*/*" : "application/json"
   };
-  if (options.body !== undefined) {
+  // C-15: `FormData` (subida de adjuntos) lleva su propio Content-Type multipart con boundary.
+  const multipart = options.body instanceof FormData;
+  if (options.body !== undefined && !multipart) {
     headers["Content-Type"] = "application/json";
   }
   if (token !== null && (options.auth !== false || options.accessToken !== undefined)) {
@@ -126,7 +128,12 @@ async function send(path: string, options: RequestOptions, token: string | null)
     response = await fetch(buildUrl(path, options.query), {
       method: options.method ?? "GET",
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body:
+        options.body === undefined
+          ? undefined
+          : options.body instanceof FormData
+            ? options.body
+            : JSON.stringify(options.body),
       credentials: "include"
     });
   } catch {

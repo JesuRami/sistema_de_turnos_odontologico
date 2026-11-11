@@ -19,7 +19,7 @@ from __future__ import annotations
 
 APP_ROLE = "app_writer"
 
-# Tablas con trigger append-only (C-03, C-04, C-05, C-06, C-09, C-10, C-11, C-12).
+# Tablas con trigger append-only (C-03, C-04, C-05, C-06, C-09, C-10, C-11, C-12 y C-15).
 APPEND_ONLY_TABLES: tuple[str, ...] = (
     "auth_event",
     "agenda_config_event",
@@ -30,6 +30,18 @@ APPEND_ONLY_TABLES: tuple[str, ...] = (
     "whatsapp_inbound",
     "reminder_manual_resend",
     "waitlist_event",
+    # C-15: historia clínica (D1). `odontogram_condition` es operativa (se desactiva, no se borra).
+    "clinical_record",
+    "anamnesis_version",
+    "odontogram_event",
+    "clinical_evolution",
+    "clinical_attachment",
+    "clinical_attachment_removal",
+    "treatment_plan",
+    "treatment_plan_version",
+    "treatment_plan_item",
+    "treatment_plan_decision",
+    "clinical_access_event",
 )
 
 CREATE_ROLE = f"""
@@ -51,6 +63,28 @@ $$
 """
 
 
+def _revoke_update_if_exists(tables: tuple[str, ...]) -> str:
+    """`REVOKE UPDATE` solo sobre las tablas que ya existen.
+
+    La migración de C-14 llama a `grant_statements()` antes de que existan las tablas de cambios
+    posteriores (p. ej. las clínicas de C-15); cada migración que agrega tablas append-only vuelve
+    a ejecutar `grant_statements()` al final, y ahí sí las alcanza.
+    """
+    lista = ", ".join(f"'{tabla}'" for tabla in tables)
+    return f"""
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[{lista}] LOOP
+    IF to_regclass('public.' || t) IS NOT NULL THEN
+      EXECUTE format('REVOKE UPDATE ON %I FROM {APP_ROLE}', t);
+    END IF;
+  END LOOP;
+END
+$$
+"""
+
+
 def grant_statements() -> list[str]:
     """Sentencias idempotentes que dejan los privilegios del contrato en la base actual."""
     sentencias = [
@@ -60,7 +94,7 @@ def grant_statements() -> list[str]:
         # Punto de partida limpio: lo que hubiera de antes (p. ej. un GRANT ALL manual) se quita.
         f"REVOKE ALL ON ALL TABLES IN SCHEMA public FROM {APP_ROLE}",
         f"GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO {APP_ROLE}",
-        f"REVOKE UPDATE ON {', '.join(APPEND_ONLY_TABLES)} FROM {APP_ROLE}",
+        _revoke_update_if_exists(APPEND_ONLY_TABLES),
         f"REVOKE INSERT, UPDATE ON alembic_version FROM {APP_ROLE}",
         f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {APP_ROLE}",
         (

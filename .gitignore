@@ -35,3 +35,7 @@ frontend/playwright-report/
 
 # Material interno para el video de demostración (no se versiona)
 docs/video/
+
+# C-15: adjuntos clínicos locales (datos de salud): nunca se versionan.
+var/
+backend/var/

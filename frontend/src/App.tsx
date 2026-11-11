@@ -6,6 +6,7 @@ import SchedulesAdmin from "./features/admin/SchedulesAdmin";
 import AgendaPage from "./features/agenda/AgendaPage";
 import PrintableDay from "./features/agenda/PrintableDay";
 import BlocksPage from "./features/blocks/BlocksPage";
+import ClinicalRecordPage from "./features/clinical/ClinicalRecordPage";
 import MergePatientsPage from "./features/patients/MergePatientsPage";
 import ReportsPage from "./features/reports/ReportsPage";
 import WaitingListPage from "./features/waiting-list/WaitingListPage";
@@ -46,6 +47,15 @@ function App(): JSX.Element {
             element={
               <RequireRole roles={["admin", "recepcion"]}>
                 <PoliciesPage />
+              </RequireRole>
+            }
+          />
+          {/* C-15: historia clínica, solo admin y odontólogo (recepción ve "sin permiso"). */}
+          <Route
+            path="/pacientes/:patientId/historia-clinica"
+            element={
+              <RequireRole roles={["admin", "odontologo"]}>
+                <ClinicalRecordPage />
               </RequireRole>
             }
           />

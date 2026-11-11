@@ -43,11 +43,18 @@
 - [x] 6.3 `docs/piloto/` (checklist, backups PITR, privacidad/retención), `ops/backup/`, `.env.example`.
 
 ## 7. Gate (pendiente, antes de archivar)
-- [ ] 7.1 `pytest -q` (py3.12 + PG 15 + Redis 7), `ruff check backend`, `black --check backend` (24.x), `mypy backend`.
-- [ ] 7.2 `npm run typecheck && npm test && npm run build`.
-- [ ] 7.3 `npx playwright test` (CI `e2e` verde).
-- [ ] 7.4 Aprobación de las 8 Open Decisions de `proposal.md` y `/opsx:archive c-14-hardening-piloto`.
+- [x] 7.1 `pytest -q` (py3.12 + PG 15 + Redis 7), `ruff check backend`, `black --check backend` (24.x), `mypy backend`.
+- [x] 7.2 `npm run typecheck && npm test && npm run build`.
+- [x] 7.3 `npx playwright test` (CI `e2e` verde).
+- [x] 7.4 Aprobación de las 8 Open Decisions de `proposal.md` y `/opsx:archive c-14-hardening-piloto`.
 
 ## Notas de verificación
 - `ruff check backend`: limpio (ruff 0.16). `black --check`: limpio en todo archivo tocado (black local 26.x; solo 2 archivos previos difieren por versión, no se tocaron). Se evitó `text("""…""")` multilínea, que black 24 y 26 formatean distinto.
 - mypy `--strict` sin errores en los módulos nuevos (resto: `Any` por falta de dependencias en el entorno).
+
+> Evidencia de verificación (2026-11-11, local con PG 15.8 + Redis 7.4): pytest 1888 passed / 6 failed
+> por el `.env` local de la raíz (pasan 100/100 sin él; en CI no existe); ruff, black (373 archivos) y
+> mypy limpios; migraciones upgrade/downgrade/upgrade OK; frontend typecheck limpio, 289 tests, build OK;
+> Playwright 11 passed / 3 skipped (`smoke` con `describe.skip` y `critical-circuit.spec.ts:76`
+> salteado por falta de horarios a la 1:13). CI de `main` verde (backend + e2e, commit "C14").
+> El usuario aceptó esta evidencia y aprobó archivar.

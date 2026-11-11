@@ -55,4 +55,7 @@ def require_roles(*roles: UserRole | str) -> Callable[..., Awaitable[Principal]]
             raise DomainError(403, "forbidden_role")
         return principal
 
+    # C-15 (D4): los roles quedan inspeccionables para la guarda de rutas (tests), sin cambiar
+    # el contrato de la dependency.
+    setattr(_checker, "allowed_roles", permitidos)  # noqa: B010
     return _checker

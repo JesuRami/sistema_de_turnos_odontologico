@@ -70,3 +70,51 @@ def test_los_reportes_y_exportaciones_nuevos_estan_protegidos() -> None:
     }
     encontradas = {path for _, path, route in _rutas_api() if path in nuevas and _protegida(route)}
     assert encontradas == nuevas
+
+
+# ------------------------------------------------------------------ C-15 (D4)
+
+_CLINICAL_MARKERS = ("clinical-record", "clinical-records", "odontogram")
+
+
+def _roles_declarados(route: APIRoute) -> list[frozenset[str]]:
+    """Conjuntos de roles de cada `require_roles(...)` en el árbol de dependencias."""
+    return [
+        frozenset(str(rol) for rol in d.call.allowed_roles)
+        for d in _dependencies(route.dependant)
+        if d.call is not None and hasattr(d.call, "allowed_roles")
+    ]
+
+
+def _rutas_clinicas() -> list[tuple[str, str, APIRoute]]:
+    return [r for r in _rutas_api() if any(m in r[1] for m in _CLINICAL_MARKERS)]
+
+
+def test_hay_rutas_clinicas_registradas() -> None:
+    assert len(_rutas_clinicas()) >= 20
+
+
+def test_ningun_endpoint_clinico_queda_sin_guarda_ni_admite_recepcion() -> None:
+    """Escenario "Ningún endpoint clínico queda sin guarda"."""
+    infractoras = []
+    for metodo, path, route in _rutas_clinicas():
+        roles = _roles_declarados(route)
+        if not _protegida(route) or not roles or any("recepcion" in r for r in roles):
+            infractoras.append(f"{metodo} {path}")
+    assert infractoras == []
+
+
+def test_la_guarda_clinica_detecta_una_ruta_que_admite_recepcion() -> None:
+    """Prueba del propio test: una ruta con recepción en sus roles se detecta."""
+    from app.common.dependencies import require_roles
+    from fastapi import APIRouter, Depends
+
+    router = APIRouter()
+
+    @router.get("/api/clinical-records/{rid}/intrusa")
+    async def _intrusa(_: object = Depends(require_roles("admin", "recepcion"))) -> None:
+        return None
+
+    route = router.routes[0]
+    assert isinstance(route, APIRoute)
+    assert any("recepcion" in r for r in _roles_declarados(route))

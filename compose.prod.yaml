@@ -15,6 +15,8 @@ services:
     ports: !reset []
     environment:
       FORWARDED_ALLOW_IPS: "*"
+      # C-15 (D7): volumen `clinical_files` heredado de compose.yaml (respaldo: docs/clinica/).
+      CLINICAL_STORAGE_ROOT: /data/clinical_files
       # C-14 (D7): en prod la clave del usuario de la app es obligatoria (sin default de ejemplo).
       DATABASE_URL: postgresql+asyncpg://${APP_DB_USER:-turnos_app}:${APP_DB_PASSWORD:?APP_DB_PASSWORD es obligatoria en prod}@db:5432/turnos
     deploy:

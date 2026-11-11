@@ -117,6 +117,10 @@ class Settings(BaseSettings):
     DB_STATEMENT_TIMEOUT_MS: int = Field(default=15_000, ge=0)
     DB_LOCK_TIMEOUT_MS: int = Field(default=3_000, ge=0)
     DB_IDLE_TX_TIMEOUT_MS: int = Field(default=60_000, ge=0)
+    # Historia clínica (C-15, D7): raíz del almacenamiento de adjuntos (volumen `clinical_files`)
+    # y tope por archivo. El tope no puede superar el CHECK de la base (10 MiB).
+    CLINICAL_STORAGE_ROOT: str = "var/clinical_files"
+    CLINICAL_MAX_ATTACHMENT_BYTES: int = Field(default=10 * 1024 * 1024, ge=1, le=10 * 1024 * 1024)
     # Separación migración/app (C-14, D7). `MIGRATION_DATABASE_URL` (dueño del schema) la lee
     # `alembic/env.py`; vacía = `DATABASE_URL`. `APP_DB_*` los usa `python -m app.ops.db_roles`
     # para crear el usuario de login miembro de `app_writer`.

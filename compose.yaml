@@ -70,6 +70,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${APP_DB_USER:-turnos_app}:${APP_DB_PASSWORD:-changeme-app-password-solo-dev}@db:5432/turnos
       REDIS_URL: redis://redis:6379/0
+      # C-15 (D7): adjuntos clínicos en el volumen `clinical_files` (incluido en el runbook de
+      # backups de docs/piloto/); solo el `api` lo monta.
+      CLINICAL_STORAGE_ROOT: /data/clinical_files
+    volumes:
+      - clinical_files:/data/clinical_files
     ports:
       - "8000:8000"
     depends_on:
@@ -141,3 +146,4 @@ networks:
 volumes:
   pgdata:
   redis-data:
+  clinical_files:

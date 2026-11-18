@@ -5,7 +5,9 @@ Grupo Saferazi: Lautaro Fernández,
                 Danilo Serrano,
                 Daniela Díaz,
                 Elio Marí
-                y Jesús Ramírez.
+                y Jesús Ramírez.  
+
+Vídeo del proyecto: https://youtu.be/YXoSXBcIrl8.  
                 
 Sistema de gestión de turnos para consultorios y clínicas odontológicas argentinas.
 MVP **agenda-first**: agenda multi-profesional y multi-sillón, reserva online 24/7,

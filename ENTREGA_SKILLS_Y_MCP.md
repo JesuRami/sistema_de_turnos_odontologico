@@ -42,19 +42,6 @@ Todos los documentos requeridos por la consigna se encuentran redactados y versi
 
 ---
 
-## 3. Guion del Video de Demostración (Estructura de 5 minutos)
-
-| Bloque | Tiempo | Contenido a exponer |
-|---|---|---|
-| **1. Introducción** | 0:00 – 0:40 | Explicación de la necesidad en el sistema odontológico tras cerrar C-10: visibilidad operativa de recordatorios para recepción (US-032). Justificación de por qué se requiere una skill de auditoría y un MCP de documentación técnica para preparar C-11. |
-| **2. Skill Propia** | 0:40 – 1:40 | Mostrar la skill creadora utilizada (`skill-creator`), la estructura generada en `.agents/skills/auditoria-escenarios-turnos/`, su registro en `.atl/skill-registry.md` y las instrucciones en `AGENTS.md` / `CLAUDE.md`. |
-| **3. Auditoría en Vivo** | 1:40 – 2:40 | Mostrar la invocación de la skill sobre C-11, el informe resultante (`02-auditoria-informe.md`) y cómo detectó los 3 defectos bloqueantes (frontera de generación en timeline, orden de guardas en reenvío concurrente, y reprogramación). |
-| **4. Conexión del MCP** | 2:40 – 3:40 | Mostrar `opencode.json`, `README.md` y la guía `mcp-context7.md`. Ejecutar o mostrar la consulta a Context7 sobre webhooks de Meta y bloqueos `FOR UPDATE` en PostgreSQL. |
-| **5. Artefactos y Aporte**| 3:40 – 4:30 | Recorrer los artefactos corregidos de `c-11-timeline-recordatorios` (`proposal`, `design`, `specs`, `tasks`), mostrando escenarios verificables (Given-When-Then) y el estado en `CHANGES.md`. |
-| **6. Cierre Crítico** | 4:30 – 5:00 | Resumen del análisis crítico (Antes vs. Después), límites identificados en el uso de IA y MCP, y próximos pasos para la implementación de C-11. |
-
----
-
 ## 4. Instrucciones para Reproducir la Configuración
 
 Cualquier integrante o evaluador puede comprobar la disponibilidad de ambas incorporaciones siguiendo estos pasos:
